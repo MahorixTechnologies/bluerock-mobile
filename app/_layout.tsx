@@ -5,6 +5,10 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { BookingProvider } from '@/providers/BookingProvider';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { AppQueryProvider } from '@/providers/QueryProvider';
+import { SettingsProvider } from '@/providers/SettingsProvider';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -13,7 +17,7 @@ export {
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -39,7 +43,17 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AppQueryProvider>
+      <AuthProvider>
+        <SettingsProvider>
+          <BookingProvider>
+            <RootLayoutNav />
+          </BookingProvider>
+        </SettingsProvider>
+      </AuthProvider>
+    </AppQueryProvider>
+  );
 }
 
 function RootLayoutNav() {
@@ -49,6 +63,8 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
