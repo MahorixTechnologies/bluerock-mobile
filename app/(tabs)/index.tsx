@@ -2,6 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Href, Link } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { LandlordDashboard } from '@/components/landlord/LandlordDashboard';
 import { HomeFeaturedCarousel } from '@/components/home/HomeFeaturedCarousel';
 import { HomeFilterChips } from '@/components/home/HomeFilterChips';
 import { HomeHeader } from '@/components/home/HomeHeader';
@@ -27,6 +28,11 @@ export default function ListingsScreen() {
   const { palette, isDark } = useAppTheme();
   const { profile } = useAuth();
   const isLandlord = profile?.role === 'LANDLORD';
+
+  if (isLandlord) {
+    return <LandlordDashboard />;
+  }
+
   const { data: listings = [], isLoading, refetch, isRefetching } = useListings();
   const { bookings } = useBookings();
   const listingFeed = listings.length ? listings : mockListings;
@@ -92,7 +98,7 @@ export default function ListingsScreen() {
         }>
         <HomeHeader
           greetingLabel={greetingLabel}
-          greeting={greeting}
+          greeting={firstName}
           profileSummary={profileSummary}
           avatarInitials={avatarInitials || firstName[0]?.toUpperCase() || 'G'}
           palette={palette}
@@ -104,29 +110,39 @@ export default function ListingsScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.searchBar,
-                { backgroundColor: palette.search, opacity: pressed ? 0.94 : 1 },
+                {
+                  backgroundColor: palette.search,
+                  borderColor: palette.border,
+                  shadowColor: palette.shadow,
+                  opacity: pressed ? 0.94 : 1,
+                },
               ]}>
-              <SymbolView
-                name={{ ios: 'magnifyingglass', android: 'search', web: 'search' } as any}
-                size={20}
-                tintColor={palette.muted}
-                weight="regular"
-              />
-              <Text style={[styles.searchText, { color: palette.muted }]}>Find something now</Text>
-            </Pressable>
-          </Link>
-          <Link href={'/(tabs)/search' as Href} asChild>
-            <Pressable
-              style={({ pressed }) => [
-                styles.filterButton,
-                { backgroundColor: palette.primary, opacity: pressed ? 0.9 : 1 },
-              ]}>
-              <SymbolView
-                name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' } as any}
-                size={20}
-                tintColor={palette.onPrimary}
-                weight="semibold"
-              />
+              <View style={[styles.searchIconWrap, { backgroundColor: palette.primarySoft }]}>
+                <SymbolView
+                  name={{ ios: 'magnifyingglass', android: 'search', web: 'search' } as any}
+                  size={18}
+                  tintColor={palette.primary}
+                  weight="semibold"
+                />
+              </View>
+              <View style={styles.searchTextBlock}>
+                <Text style={[styles.searchPlaceholder, { color: palette.text }]}>Search stays</Text>
+                <Text style={[styles.searchHint, { color: palette.muted }]}>
+                  {listingFeed.length} places · Any dates
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.searchTrailing,
+                  { backgroundColor: palette.soft, borderColor: palette.border },
+                ]}>
+                <SymbolView
+                  name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' } as any}
+                  size={17}
+                  tintColor={palette.text}
+                  weight="semibold"
+                />
+              </View>
             </Pressable>
           </Link>
         </View>
@@ -143,10 +159,27 @@ export default function ListingsScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.text }]}>{topSectionTitle}</Text>
+            <View style={styles.headerLeft}>
+              <View style={[styles.eyebrowRow, { backgroundColor: palette.primarySoft }]}>
+                <SymbolView
+                  name={{ ios: 'sparkles', android: 'auto-awesome', web: 'auto-awesome' } as any}
+                  size={10}
+                  tintColor={palette.primary}
+                  weight="bold"
+                />
+                <Text style={[styles.eyebrowText, { color: palette.primary }]}>
+                  {isLandlord ? 'YOUR PROPERTIES' : 'HANDPICKED'}
+                </Text>
+              </View>
+              <Text style={[styles.sectionTitle, { color: palette.text }]}>{topSectionTitle}</Text>
+            </View>
             <Link href={primaryHref} asChild>
-              <Pressable style={({ pressed }) => [styles.sectionLinkRow, { opacity: pressed ? 0.75 : 1 }]}>
-                <Text style={[styles.sectionLink, { color: palette.muted }]}>View all</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sectionLinkRow,
+                  { backgroundColor: palette.soft, opacity: pressed ? 0.85 : 1 },
+                ]}>
+                <Text style={[styles.sectionLink, { color: palette.muted }]}>See all</Text>
                 <SymbolView
                   name={{ ios: 'chevron.right', android: 'chevron-right', web: 'chevron-right' } as any}
                   size={13}
@@ -159,7 +192,11 @@ export default function ListingsScreen() {
           {featuredListings.length ? (
             <HomeFeaturedCarousel listings={featuredListings} palette={palette} />
           ) : (
-            <View style={[styles.emptyState, { backgroundColor: palette.card }]}>
+            <View
+              style={[
+                styles.emptyState,
+                { backgroundColor: palette.card, borderColor: palette.border },
+              ]}>
               <Text style={[styles.emptyTitle, { color: palette.text }]}>
                 {isLoading ? 'Loading listings…' : 'No listings found'}
               </Text>
@@ -177,6 +214,7 @@ export default function ListingsScreen() {
           mutedColor={palette.muted}
           listings={secondaryListings}
           palette={palette}
+          eyebrow={isLandlord ? 'EXPAND' : 'DISCOVER'}
         />
       </ScrollView>
     </View>
@@ -185,41 +223,72 @@ export default function ListingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 120, gap: 22 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 120, gap: 20 },
+  searchRow: { flexDirection: 'row', alignItems: 'center' },
   searchBar: {
     flex: 1,
-    height: 54,
-    borderRadius: 28,
-    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000000',
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    gap: 14,
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
-  searchText: { fontSize: 15, fontWeight: '500' },
-  filterButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+  searchIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    flexShrink: 0,
   },
-  section: { gap: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 18, fontWeight: '800' },
-  sectionLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  sectionLink: { fontSize: 15, fontWeight: '500' },
-  emptyState: { borderRadius: 22, padding: 18, gap: 6 },
-  emptyTitle: { fontSize: 17, fontWeight: '800' },
-  emptyText: { fontSize: 14, lineHeight: 20 },
+  searchTextBlock: { flex: 1, gap: 2 },
+  searchPlaceholder: { fontSize: 15, fontWeight: '800', letterSpacing: -0.1 },
+  searchHint: { fontSize: 12, fontWeight: '500' },
+  searchTrailing: {
+    width: 40,
+    height: 40,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  section: { gap: 16 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerLeft: { gap: 6 },
+  eyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+  },
+  eyebrowText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.3, lineHeight: 26 },
+  sectionLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  sectionLink: { fontSize: 13, fontWeight: '700' },
+  emptyState: {
+    borderRadius: 24,
+    padding: 22,
+    gap: 8,
+    borderWidth: 1,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: '900' },
+  emptyText: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
 });

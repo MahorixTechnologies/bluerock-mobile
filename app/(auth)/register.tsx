@@ -194,7 +194,7 @@ export default function RegisterScreen() {
         role,
         phone: formatPhoneNumberForApi(phone),
       });
-      router.replace('/(tabs)/profile');
+      router.replace('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed');
     }

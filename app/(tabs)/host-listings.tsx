@@ -1,17 +1,17 @@
-import { SymbolView } from 'expo-symbols';
 import { Link, Redirect } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { Input, Textarea } from '@/components/inputs';
+import { DeleteConfirmDialog } from '@/components/listings/DeleteConfirmDialog';
+import { HostListingsEmptyState } from '@/components/listings/HostListingsEmptyState';
+import { HostListingsForm, type ListingDraft } from '@/components/listings/HostListingsForm';
+import { LandlordListingsTabs } from '@/components/listings/LandlordListingsTabs';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import type { AppPalette } from '@/constants/theme';
+import { useHostListings } from '@/hooks/useHostListings';
 import { apiFetch } from '@/lib/api-client';
-import { formatPricePerNight } from '@/lib/format';
-import { mapApiListing } from '@/lib/listing-mapper';
-import type { Listing, PropertyType } from '@/lib/models';
-import { mockListings } from '@/lib/mock-data';
+import type { Listing } from '@/lib/models';
 import { useAuth } from '@/providers/AuthProvider';
 
 function parseCsv(input: string) {
@@ -21,51 +21,110 @@ function parseCsv(input: string) {
     .filter(Boolean);
 }
 
-function statusColors(palette: AppPalette, status: Listing['status']) {
-  switch (status) {
-    case 'APPROVED':
-      return { bg: palette.successSoft, fg: palette.success };
-    case 'REJECTED':
-      return { bg: palette.dangerSoft, fg: palette.danger };
-    default:
-      return { bg: palette.warningSoft, fg: palette.warning };
-  }
-}
-
 export default function HostListingsScreen() {
   const queryClient = useQueryClient();
   const { palette } = useAppTheme();
   const { status, profile } = useAuth();
 
-  const { data: listings = [], isLoading, error } = useQuery({
-    queryKey: ['hostListings'],
-    queryFn: async (): Promise<Listing[]> => {
-      if (process.env.EXPO_PUBLIC_API_URL) {
-        const raw = await apiFetch('/listings/mine');
-        return Array.isArray(raw) ? raw.map((l) => mapApiListing(l, 'You')) : [];
-      }
-      return mockListings.map((l) => ({ ...l, status: 'PENDING' as const }));
-    },
+  const { data: listings = [], isLoading } = useHostListings({
     enabled: status === 'signedIn' && profile?.role !== 'RENTER',
   });
 
-  const [title, setTitle] = useState('');
-  const [location, setLocation] = useState('');
-  const [price, setPrice] = useState('');
-  const [rooms, setRooms] = useState('1');
-  const [bathrooms, setBathrooms] = useState('1');
-  const [type, setType] = useState<PropertyType>('Apartment');
-  const [description, setDescription] = useState('');
-  const [images, setImages] = useState('');
-  const [amenities, setAmenities] = useState('');
-  const [rules, setRules] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Listing | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const parsedPrice = useMemo(() => {
-    const n = Number(price);
-    return Number.isFinite(n) ? n : 0;
-  }, [price]);
+  const payloadFromDraft = (draft: ListingDraft) => {
+    const parsedPrice = Number(draft.price);
+    return {
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      location: draft.location.trim(),
+      pricePerNight: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+      currency: draft.currency,
+      rooms: Number(draft.rooms) || 0,
+      bathrooms: Number(draft.bathrooms) || 0,
+      type: draft.type,
+      images: parseCsv(draft.images),
+      amenities: parseCsv(draft.amenities),
+      rules: parseCsv(draft.rules),
+    };
+  };
+
+  const handleSubmit = async (draft: ListingDraft) => {
+    setActionError(null);
+    const payload = payloadFromDraft(draft);
+    if (!payload.title || !payload.location || payload.pricePerNight <= 0) {
+      setActionError('Please fill all required fields: title, location and a valid positive price.');
+      return;
+    }
+    try {
+      setSaving(true);
+      if (!canMutate) {
+        throw new Error('Backend required: set EXPO_PUBLIC_API_URL to create and edit listings.');
+      }
+      if (editing) {
+        await apiFetch(`/listings/${editing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch('/listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
+      setEditing(null);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to save listing');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      if (!canMutate) {
+        throw new Error('Backend required: set EXPO_PUBLIC_API_URL to delete listings.');
+      }
+      await apiFetch(`/listings/${confirmDeleteId}`, { method: 'DELETE' });
+      await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to delete listing');
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const handleTogglePause = async (listing: Listing) => {
+    setActionError(null);
+    try {
+      if (!canMutate) {
+        throw new Error('Backend required: set EXPO_PUBLIC_API_URL to pause or activate listings.');
+      }
+      const nextStatus = listing.status === 'APPROVED' ? 'PAUSED' : 'APPROVED';
+      await apiFetch(`/listings/${listing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to update listing status');
+    }
+  };
+
+  const headerKpis = useMemo(() => {
+    const total = listings.length;
+    const approved = listings.filter((l) => l.status === 'APPROVED').length;
+    const pending = listings.filter((l) => l.status === 'PENDING').length;
+    return { total, approved, pending };
+  }, [listings]);
 
   if (profile?.role === 'RENTER') {
     return <Redirect href="/" />;
@@ -102,295 +161,101 @@ export default function HostListingsScreen() {
     );
   }
 
-  const canCreate =
-    title.trim().length > 0 && location.trim().length > 0 && parsedPrice > 0 && !saving;
+  const canMutate = Boolean(process.env.EXPO_PUBLIC_API_URL);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
-      <FlatList
+      <ScrollView
         contentContainerStyle={{ paddingBottom: 120, gap: 12 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        data={listings}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View style={{ gap: 12 }}>
-            <Text style={[styles.title, { color: palette.text }]}>My listings</Text>
-            <Text style={[styles.subtitle, { color: palette.muted, marginTop: -6 }]}>
-              Create and manage properties you rent out.
-            </Text>
+        keyboardDismissMode="on-drag">
+        <Text style={[styles.title, { color: palette.text }]}>My listings</Text>
+        <Text style={[styles.subtitle, { color: palette.muted, marginTop: -6 }]}>
+          Create and manage properties you rent out.
+        </Text>
 
-            <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Create listing</Text>
-
-              <Input
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Title"
-                leftIcon="textformat"
-              />
-              <Input
-                value={location}
-                onChangeText={setLocation}
-                placeholder="Location"
-                leftIcon="mappin"
-              />
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Input
-                  containerStyle={{ flex: 1 }}
-                  value={price}
-                  onChangeText={setPrice}
-                  placeholder="Price"
-                  keyboardType="numeric"
-                />
-                <Input
-                  containerStyle={{ flex: 1 }}
-                  value={rooms}
-                  onChangeText={setRooms}
-                  placeholder="Rooms"
-                  keyboardType="numeric"
-                />
-                <Input
-                  containerStyle={{ flex: 1 }}
-                  value={bathrooms}
-                  onChangeText={setBathrooms}
-                  placeholder="Baths"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {(['Apartment', 'House'] as const).map((option) => (
-                  <Pressable
-                    key={option}
-                    onPress={() => setType(option)}
-                    style={({ pressed }) => [
-                      styles.typeChip,
-                      { borderColor: palette.border, opacity: pressed ? 0.9 : 1 },
-                      type === option ? { backgroundColor: palette.primarySoft, borderColor: palette.primary } : null,
-                    ]}>
-                    <Text style={[styles.typeChipText, { color: type === option ? palette.primary : palette.text }]}>
-                      {option}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Textarea
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Description (optional)"
-                rows={3}
-              />
-              <Input
-                value={images}
-                onChangeText={setImages}
-                placeholder="Image URLs (comma separated)"
-                autoCapitalize="none"
-                leftIcon="photo"
-              />
-              <Input
-                value={amenities}
-                onChangeText={setAmenities}
-                placeholder="Amenities (comma separated)"
-                leftIcon="sparkles"
-              />
-              <Input
-                value={rules}
-                onChangeText={setRules}
-                placeholder="Rules (comma separated)"
-                leftIcon="checklist"
-              />
-
-              {actionError ? <Text style={{ color: palette.danger }}>{actionError}</Text> : null}
-
-              <Pressable
-                disabled={!canCreate}
-                onPress={async () => {
-                  setActionError(null);
-                  if (!process.env.EXPO_PUBLIC_API_URL) {
-                    setActionError('Set EXPO_PUBLIC_API_URL to create listings against the backend.');
-                    return;
-                  }
-                  setSaving(true);
-                  try {
-                    await apiFetch('/listings', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        title: title.trim(),
-                        description: description.trim(),
-                        location: location.trim(),
-                        pricePerNight: parsedPrice,
-                        currency: 'NGN',
-                        rooms: Number(rooms) || 0,
-                        bathrooms: Number(bathrooms) || 0,
-                        type,
-                        images: parseCsv(images),
-                        amenities: parseCsv(amenities),
-                        rules: parseCsv(rules),
-                      }),
-                    });
-
-                    setTitle('');
-                    setLocation('');
-                    setPrice('');
-                    setRooms('1');
-                    setBathrooms('1');
-                    setType('Apartment');
-                    setDescription('');
-                    setImages('');
-                    setAmenities('');
-                    setRules('');
-
-                    await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
-                  } catch (e) {
-                    setActionError(e instanceof Error ? e.message : 'Failed to create listing');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  { backgroundColor: palette.primary },
-                  !canCreate ? { backgroundColor: palette.primarySoft } : null,
-                  { opacity: pressed ? 0.9 : 1 },
-                ]}>
-                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
-                  {saving ? 'Creating…' : 'Create listing'}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.listHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Your listings</Text>
-              <Text style={[styles.countPill, { color: palette.muted }]}>{listings.length}</Text>
-            </View>
-            {error ? <Text style={{ color: palette.danger }}>{String(error)}</Text> : null}
-          </View>
-        }
-        ListEmptyComponent={
-          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <Text style={[styles.cardTitle, { color: palette.text }]}>
-              {isLoading ? 'Loading…' : 'No listings yet'}
-            </Text>
-            <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
-              Create your first property listing above.
+        {!canMutate ? (
+          <View style={[styles.noticeBanner, { backgroundColor: palette.primarySoft, borderColor: palette.primary }]}>
+            <SymbolView
+              name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' } as any}
+              size={16}
+              tintColor={palette.primary}
+            />
+            <Text style={[styles.noticeBannerText, { color: palette.primary }]}>
+              Demo mode — read only. Set EXPO_PUBLIC_API_URL to create or edit listings.
             </Text>
           </View>
-        }
-        renderItem={({ item }) => {
-          const sc = statusColors(palette, item.status);
-          return (
-            <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={[styles.cardSubtitle, { color: palette.muted }]}>{item.location}</Text>
-                  <Text style={[styles.meta, { color: palette.muted }]}>
-                    {item.type} · {item.rooms} rooms · {item.bathrooms} baths
-                  </Text>
-                  <Text style={[styles.priceText, { color: palette.text }]}>
-                    {formatPricePerNight(item.pricePerNight, item.currency)}
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                  <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
-                    <Text style={[styles.statusText, { color: sc.fg }]}>{item.status ?? 'PENDING'}</Text>
-                  </View>
-                  <Link href={`/listing/${item.id}`} asChild>
-                    <Pressable style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
-                      <Text style={{ fontWeight: '800', color: palette.primary }}>View</Text>
-                    </Pressable>
-                  </Link>
-                </View>
-              </View>
+        ) : null}
 
-              {process.env.EXPO_PUBLIC_API_URL ? (
-                <Pressable
-                  onPress={async () => {
-                    setActionError(null);
-                    try {
-                      await apiFetch(`/listings/${item.id}`, { method: 'DELETE' });
-                      await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
-                    } catch (e) {
-                      setActionError(e instanceof Error ? e.message : 'Failed to delete listing');
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.deleteButton,
-                    { borderColor: palette.dangerSoft, opacity: pressed ? 0.8 : 1 },
-                  ]}>
-                  <SymbolView
-                    name={{ ios: 'trash', android: 'delete', web: 'delete' } as any}
-                    size={14}
-                    tintColor={palette.danger}
-                  />
-                  <Text style={[styles.deleteButtonText, { color: palette.danger }]}>Delete</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          );
-        }}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={[styles.kpiCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Text style={[styles.kpiValue, { color: palette.text }]}>{headerKpis.total}</Text>
+            <Text style={[styles.kpiLabel, { color: palette.muted }]}>Total</Text>
+          </View>
+          <View style={[styles.kpiCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Text style={[styles.kpiValue, { color: palette.success }]}>{headerKpis.approved}</Text>
+            <Text style={[styles.kpiLabel, { color: palette.muted }]}>Live</Text>
+          </View>
+          <View style={[styles.kpiCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Text style={[styles.kpiValue, { color: palette.warning }]}>{headerKpis.pending}</Text>
+            <Text style={[styles.kpiLabel, { color: palette.muted }]}>Pending</Text>
+          </View>
+        </View>
+
+        {actionError ? (
+          <Text style={{ color: palette.danger, fontWeight: '700' }}>{actionError}</Text>
+        ) : null}
+
+        {canMutate ? (
+          <HostListingsForm
+            editing={editing}
+            actionError={actionError}
+            saving={saving}
+            onCancel={() => setEditing(null)}
+            onSubmit={handleSubmit}
+          />
+        ) : (
+          <HostListingsEmptyState
+            message="Connect EXPO_PUBLIC_API_URL to create and edit listings."
+          />
+        )}
+
+        {isLoading && listings.length === 0 ? (
+          <HostListingsEmptyState loading />
+        ) : null}
+
+        <LandlordListingsTabs
+          listings={listings}
+          canMutate={canMutate}
+          isLoading={isLoading}
+          onEdit={setEditing}
+          onDelete={(l) => setConfirmDeleteId(l.id)}
+          onTogglePause={handleTogglePause}
+          palette={palette}
+        />
+      </ScrollView>
+
+      <DeleteConfirmDialog
+        visible={confirmDeleteId !== null}
+        onCancel={() => setConfirmDeleteId(null)}
+        onConfirm={handleDelete}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-  title: { fontSize: 26, fontWeight: '800' },
-  subtitle: { marginTop: 6, fontSize: 14 },
-  card: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    gap: 10,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: '800' },
-  listHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  countPill: { fontSize: 14, fontWeight: '800' },
-  typeChip: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  typeChipText: { fontWeight: '800' },
-  primaryButton: {
-    marginTop: 6,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
+  container: { flex: 1, padding: 16 },
+  title: { fontSize: 28, fontWeight: '900', letterSpacing: -0.6 },
+  subtitle: { fontSize: 14 },
+  primaryButton: { marginTop: 16, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { fontWeight: '800', fontSize: 16 },
-  secondaryButton: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
+  secondaryButton: { marginTop: 10, borderWidth: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   secondaryButtonText: { fontWeight: '800', fontSize: 16 },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 4,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 11,
-  },
-  deleteButtonText: { fontWeight: '800', fontSize: 14 },
-  cardTitle: { fontSize: 16, fontWeight: '800' },
-  cardSubtitle: { fontSize: 13 },
-  meta: { fontSize: 13 },
-  priceText: { fontSize: 14, fontWeight: '800', marginTop: 2 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  kpiCard: { flex: 1, borderRadius: 16, borderWidth: 1, padding: 14, gap: 2, alignItems: 'center' },
+  kpiValue: { fontSize: 22, fontWeight: '900', letterSpacing: -0.3 },
+  kpiLabel: { fontSize: 12, fontWeight: '700' },
+  noticeBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
+  noticeBannerText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.02, flexShrink: 1 },
 });

@@ -5,7 +5,7 @@ import { View } from '@/components/Themed';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function AppEntryScreen() {
-  const { status } = useAuth();
+  const { status, profile } = useAuth();
 
   if (status === 'loading') {
     return (
@@ -16,6 +16,10 @@ export default function AppEntryScreen() {
   }
 
   if (status === 'signedIn') {
+    const role = profile?.role ?? 'RENTER';
+    if (role === 'LANDLORD') {
+      return <Redirect href="/(tabs)" />;
+    }
     return <Redirect href="/(tabs)" />;
   }
 

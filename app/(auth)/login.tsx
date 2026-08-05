@@ -14,7 +14,7 @@ import {
 
 import { Input, PasswordInput } from '@/components/inputs';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { useAuth } from '@/providers/AuthProvider';
+import { DEMO_ACCOUNTS, useAuth } from '@/providers/AuthProvider';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -105,13 +105,81 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
+            <View style={[styles.demoCard, { backgroundColor: palette.successSoft, borderColor: palette.success }]}>
+              <View style={styles.demoCardHeader}>
+                <SymbolView
+                  name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' } as any}
+                  size={18}
+                  tintColor={palette.success}
+                />
+                <Text style={[styles.demoEyebrow, { color: palette.success }]}>
+                  DEMO ACCOUNTS · TAP TO FILL
+                </Text>
+              </View>
+              <Text style={[styles.demoSubtitle, { color: palette.muted }]}>
+                No backend needed. Tap any chip below to sign in instantly.
+              </Text>
+              <View style={styles.demoChips}>
+                {DEMO_ACCOUNTS.map((account) => {
+                  const roleLabel =
+                    account.role === 'ADMIN'
+                      ? 'Admin'
+                      : account.role === 'LANDLORD'
+                      ? 'Host'
+                      : 'Guest';
+                  return (
+                    <Pressable
+                      key={account.email}
+                      onPress={() => {
+                        setEmail(account.email);
+                        setPassword(account.password);
+                        setError(null);
+                      }}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.demoChip,
+                        {
+                          borderColor: palette.primary,
+                          backgroundColor: '#ffffff',
+                          opacity: pressed ? 0.85 : 1,
+                          shadowColor: palette.primary,
+                        },
+                      ]}>
+                      <View style={[styles.demoChipAvatar, { backgroundColor: palette.primarySoft }]}>
+                        <Text style={[styles.demoChipAvatarText, { color: palette.primary }]}>
+                          {roleLabel.charAt(0)}
+                        </Text>
+                      </View>
+                      <View style={styles.demoChipBody}>
+                        <View style={styles.demoChipTopRow}>
+                          <Text style={[styles.demoChipName, { color: palette.text }]}>{account.name}</Text>
+                          <Text style={[styles.demoChipRole, { backgroundColor: palette.primarySoft, color: palette.primary }]}>
+                            {roleLabel}
+                          </Text>
+                        </View>
+                        <Text style={[styles.demoChipEmail, { color: palette.muted }]}>{account.email}</Text>
+                        <Text style={[styles.demoChipPw, { color: palette.muted }]}>
+                          password · <Text style={{ color: palette.text, fontWeight: '700' }}>{account.password}</Text>
+                        </Text>
+                      </View>
+                      <SymbolView
+                        name={{ ios: 'arrow.right.circle.fill', android: 'arrow_circle_right', web: 'arrow_circle_right' } as any}
+                        size={22}
+                        tintColor={palette.primary}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             <Pressable
               disabled={!canSubmit}
               onPress={async () => {
                 setError(null);
                 try {
                   await login({ email: email.trim(), password });
-                  router.replace('/(tabs)');
+                  router.replace('/');
                 } catch (e) {
                   setError(e instanceof Error ? e.message : 'Login failed');
                 }
@@ -213,4 +281,52 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   footerText: { fontSize: 14 },
+  demoCard: {
+    marginTop: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  demoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  demoEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  demoSubtitle: { fontSize: 13, lineHeight: 18 },
+  demoChips: { gap: 10 },
+  demoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  demoChipAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoChipAvatarText: { fontSize: 16, fontWeight: '900' },
+  demoChipBody: { flex: 1, gap: 2 },
+  demoChipTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  demoChipName: { fontSize: 14, fontWeight: '800' },
+  demoChipRole: {
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    letterSpacing: 0.3,
+  },
+  demoChipEmail: { fontSize: 12, fontWeight: '600' },
+  demoChipPw: { fontSize: 12 },
 });

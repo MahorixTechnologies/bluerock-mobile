@@ -1,24 +1,26 @@
-import { useEffect, useState } from 'react';
-import { SymbolView } from 'expo-symbols';
-import { Tabs } from 'expo-router';
-import type { ColorValue } from 'react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Tabs } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useEffect, useState } from "react";
+import type { ColorValue } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from "react-native-reanimated";
 
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useClientOnlyValue } from "@/components/useClientOnlyValue";
+import { useAppTheme } from "@/hooks/useAppTheme";
+import { useAuth } from "@/providers/AuthProvider";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const DURATION = 220;
 
-const BAR_BG = '#22222a';
-const ACTIVE_PILL_BG = 'rgba(255,255,255,0.10)';
-const ACTIVE_PILL_BORDER = 'rgba(255,255,255,0.12)';
-const ACTIVE_COLOR = '#ffffff';
-const INACTIVE_COLOR = 'rgba(255,255,255,0.55)';
+const BAR_BG = "#22222a";
+const ACTIVE_PILL_BG = "rgba(255,255,255,0.10)";
+const ACTIVE_PILL_BORDER = "rgba(255,255,255,0.12)";
+const ACTIVE_COLOR = "#ffffff";
+const INACTIVE_COLOR = "rgba(255,255,255,0.55)";
 
 function TabSymbol({
   ios,
@@ -36,7 +38,7 @@ function TabSymbol({
       name={{ ios, android, web: android } as any}
       tintColor={String(color)}
       size={22}
-      weight={focused ? 'semibold' : 'regular'}
+      weight={focused ? "semibold" : "regular"}
     />
   );
 }
@@ -77,11 +79,18 @@ function TabItem({
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={styles.item}>
+      style={styles.item}
+    >
       <Animated.View style={[styles.pill, pillStyle]} pointerEvents="none" />
       {renderIcon(focused ? ACTIVE_COLOR : INACTIVE_COLOR)}
-      <Animated.View style={[styles.labelWrap, labelStyle]} pointerEvents="none">
-        <Text numberOfLines={1} style={[styles.label, { width: labelWidth || undefined }]}>
+      <Animated.View
+        style={[styles.labelWrap, labelStyle]}
+        pointerEvents="none"
+      >
+        <Text
+          numberOfLines={1}
+          style={[styles.label, { width: labelWidth || undefined }]}
+        >
           {label}
         </Text>
       </Animated.View>
@@ -90,7 +99,8 @@ function TabItem({
         aria-hidden
         numberOfLines={1}
         onLayout={(e) => setLabelWidth(Math.ceil(e.nativeEvent.layout.width))}
-        style={[styles.label, styles.measure]}>
+        style={[styles.label, styles.measure]}
+      >
         {label}
       </Text>
     </AnimatedPressable>
@@ -98,8 +108,10 @@ function TabItem({
 }
 
 function isHidden(itemStyle: unknown) {
-  const flat = StyleSheet.flatten(itemStyle as any) as { display?: string } | undefined;
-  return flat?.display === 'none';
+  const flat = StyleSheet.flatten(itemStyle as any) as
+    | { display?: string }
+    | undefined;
+  return flat?.display === "none";
 }
 
 function FloatingTabBar({ state, descriptors, navigation, insets }: any) {
@@ -110,19 +122,20 @@ function FloatingTabBar({ state, descriptors, navigation, insets }: any) {
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.barWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      style={[styles.barWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+    >
       <View style={styles.bar}>
         {routes.map((route: any) => {
           const { options } = descriptors[route.key];
           const focused = state.routes[state.index].key === route.key;
           const label =
-            typeof options.tabBarLabel === 'string'
+            typeof options.tabBarLabel === "string"
               ? options.tabBarLabel
               : (options.title ?? route.name);
 
           const onPress = () => {
             const event = navigation.emit({
-              type: 'tabPress',
+              type: "tabPress",
               target: route.key,
               canPreventDefault: true,
             });
@@ -132,7 +145,7 @@ function FloatingTabBar({ state, descriptors, navigation, insets }: any) {
           };
 
           const onLongPress = () => {
-            navigation.emit({ type: 'tabLongPress', target: route.key });
+            navigation.emit({ type: "tabLongPress", target: route.key });
           };
 
           return (
@@ -155,6 +168,13 @@ function FloatingTabBar({ state, descriptors, navigation, insets }: any) {
 }
 
 export default function TabLayout() {
+  const { palette } = useAppTheme();
+  const { profile } = useAuth();
+  const isLandlord = profile?.role === "LANDLORD";
+
+  const hideIfLandlord = { display: isLandlord ? ("none" as const) : ("flex" as const) };
+  const hideIfNotLandlord = { display: isLandlord ? ("flex" as const) : ("none" as const) };
+
   return (
     <Tabs
       tabBar={(props) => <FloatingTabBar {...props} />}
@@ -162,67 +182,117 @@ export default function TabLayout() {
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         sceneStyle: {
-          backgroundColor: '#f3f3f4',
+          backgroundColor: palette.bg,
         },
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <TabSymbol ios="house.fill" android="home" color={color} focused={focused} />
+            <TabSymbol
+              ios="house.fill"
+              android="home"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
+          title: "Search",
           tabBarIcon: ({ color, focused }) => (
-            <TabSymbol ios="magnifyingglass" android="search" color={color} focused={focused} />
+            <TabSymbol
+              ios="magnifyingglass"
+              android="search"
+              color={color}
+              focused={focused}
+            />
           ),
+          tabBarItemStyle: hideIfLandlord,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'Bookings',
+          title: "Bookings",
           tabBarIcon: ({ color, focused }) => (
-            <TabSymbol ios="calendar" android="event" color={color} focused={focused} />
+            <TabSymbol
+              ios="calendar"
+              android="event"
+              color={color}
+              focused={focused}
+            />
           ),
+          tabBarItemStyle: hideIfLandlord,
+        }}
+      />
+      <Tabs.Screen
+        name="host-listings"
+        options={{
+          title: "My Listings",
+          tabBarLabel: "My Listings",
+          href: null,
+          tabBarIcon: ({ color, focused }) => (
+            <TabSymbol
+              ios="building.2.fill"
+              android="apartment"
+              color={color}
+              focused={focused}
+            />
+          ),
+          tabBarItemStyle: hideIfNotLandlord,
+        }}
+      />
+      <Tabs.Screen
+        name="host-bookings"
+        options={{
+          title: "Guest Bookings",
+          tabBarLabel: "Guest Bookings",
+          href: null,
+          tabBarIcon: ({ color, focused }) => (
+            <TabSymbol
+              ios="person.2.fill"
+              android="group"
+              color={color}
+              focused={focused}
+            />
+          ),
+          tabBarItemStyle: hideIfNotLandlord,
         }}
       />
       <Tabs.Screen
         name="payouts"
         options={{
-          title: 'Payouts',
+          title: "Payouts",
           tabBarIcon: ({ color, focused }) => (
-            <TabSymbol ios="wallet.pass" android="payments" color={color} focused={focused} />
+            <TabSymbol
+              ios="wallet.pass"
+              android="payments"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Account',
+          title: "Account",
           tabBarIcon: ({ color, focused }) => (
-            <TabSymbol ios="person" android="person" color={color} focused={focused} />
+            <TabSymbol
+              ios="person"
+              android="person"
+              color={color}
+              focused={focused}
+            />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="host-listings"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="host-bookings"
-        options={{
-          href: null,
         }}
       />
     </Tabs>
@@ -231,21 +301,21 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   barWrap: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
   },
   bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     height: 64,
     paddingHorizontal: 10,
     borderRadius: 34,
     backgroundColor: BAR_BG,
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOpacity: 0.3,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -256,12 +326,12 @@ const styles = StyleSheet.create({
     minWidth: 48,
     paddingHorizontal: 13,
     borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   pill: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -272,17 +342,17 @@ const styles = StyleSheet.create({
     borderColor: ACTIVE_PILL_BORDER,
   },
   labelWrap: {
-    overflow: 'hidden',
-    justifyContent: 'center',
+    overflow: "hidden",
+    justifyContent: "center",
   },
   label: {
     color: ACTIVE_COLOR,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.1,
   },
   measure: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     opacity: 0,

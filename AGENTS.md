@@ -66,13 +66,25 @@ bluerock-mobile/
 ## 3. Routing Rules
 
 - **Use `expo-router` and its conventions.** Do not add a custom navigation container.
-- **Tabs live in `app/(tabs)/_layout.tsx`**. Exactly **5 visible tabs** are exposed:
+- **Tabs live in `app/(tabs)/_layout.tsx`**. The visible tab set is role-dependent:
+
+  **RENTER / signed out (5 tabs):**
   1. `index` → **Home**
   2. `search` → **Search**
   3. `bookings` → **Bookings**
   4. `payouts` → **Payouts**
   5. `profile` → **Account**
-- Landlord-only screens `host-listings` and `host-bookings` are registered with `href: null` so they remain navigable but never show as tabs.
+
+  **LANDLORD (5 tabs):**
+  1. `index` → **Home** (renders `LandlordDashboard`)
+  2. `host-listings` → **My Listings** (`tabBarLabel: "My Listings"`, Symbol `building.2.fill` / `apartment`)
+  3. `host-bookings` → **Guest Bookings** (`tabBarLabel: "Guest Bookings"`, Symbol `person.2.fill` / `group`)
+  4. `payouts` → **Payouts**
+  5. `profile` → **Account**
+
+- `Search` and `bookings` tabs are hidden (`tabBarItemStyle.display = "none"`) when role is LANDLORD because those screens contain explicit `<Redirect>` routing to `/host-listings` / `/host-bookings` respectively.
+- Vice-versa: `host-listings` and `host-bookings` tabs are hidden from RENTER/signed-out users via the same `display: "none"` gate while still being registered for deep-link navigation.
+- Floating `FloatingTabBar` already respects `display: "none"` via `isHidden()` filter on `tabBarItemStyle`, so the 5-visible-tab count holds for both roles.
 - Dynamic segments live in the `app/` root (e.g. `app/listing/[id].tsx`), not inside `(tabs)`.
 - Href typing: cast string templates with `as Href` from `expo-router`.
 
