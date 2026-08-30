@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppPalette } from '@/constants/theme';
@@ -5,16 +6,25 @@ import { formatMoney } from '@/lib/format';
 import type { Booking } from '@/lib/models';
 import { prettyDate } from '@/components/bookings/utils';
 
+export type PaymentProvider = 'PAYSTACK' | 'FLUTTERWAVE';
+
 type PaymentSheetProps = {
   visible: boolean;
   onClose: () => void;
   booking: Booking | null;
-  onConfirm: () => void;
+  onConfirm: (provider: PaymentProvider) => void;
   palette: AppPalette;
   busy?: boolean;
 };
 
+const PROVIDERS: Array<{ key: PaymentProvider; label: string; emoji: string }> = [
+  { key: 'PAYSTACK', label: 'Paystack', emoji: '💳' },
+  { key: 'FLUTTERWAVE', label: 'Flutterwave', emoji: '🌊' },
+];
+
 export function PaymentSheet({ visible, onClose, booking, onConfirm, palette, busy }: PaymentSheetProps) {
+  const [provider, setProvider] = useState<PaymentProvider>('PAYSTACK');
+
   if (!visible || !booking) return null;
 
   const nights = booking.nights;
@@ -84,34 +94,48 @@ export function PaymentSheet({ visible, onClose, booking, onConfirm, palette, bu
             </View>
           </View>
 
-          <View
-            style={[
-              styles.methodCard,
-              {
-                backgroundColor: palette.primarySoft,
-                borderColor: palette.primarySoft,
-              },
-            ]}
-          >
-            <View style={styles.methodIcon}>
-              <Text style={styles.methodEmoji}>💳</Text>
-            </View>
-            <View style={styles.methodInfo}>
-              <Text style={[styles.methodTitle, { color: palette.primary }]}>Card ending ••4242</Text>
-              <Text style={[styles.methodSub, { color: palette.primary }]}>Default</Text>
-            </View>
-            <View style={[styles.methodCheckWrap, { backgroundColor: palette.primary }]}>
-              <Text style={styles.methodCheck}>✓</Text>
-            </View>
+          <View style={styles.providerRow}>
+            {PROVIDERS.map((opt) => {
+              const isActive = provider === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => setProvider(opt.key)}
+                  style={[
+                    styles.methodCard,
+                    styles.providerOption,
+                    {
+                      backgroundColor: isActive ? palette.primarySoft : palette.card,
+                      borderColor: isActive ? palette.primary : palette.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.methodIcon}>
+                    <Text style={styles.methodEmoji}>{opt.emoji}</Text>
+                  </View>
+                  <Text
+                    style={[styles.methodTitle, { color: isActive ? palette.primary : palette.text }]}
+                  >
+                    {opt.label}
+                  </Text>
+                  {isActive && (
+                    <View style={[styles.methodCheckWrap, { backgroundColor: palette.primary }]}>
+                      <Text style={styles.methodCheck}>✓</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
 
           <Text style={[styles.security, { color: palette.muted }]}>
-            🔒 Secured · Receipt issued immediately.
+            🔒 You&apos;ll be taken to {provider === 'PAYSTACK' ? 'Paystack' : 'Flutterwave'} to complete
+            payment, then brought back here.
           </Text>
 
           <Pressable
             disabled={busy}
-            onPress={onConfirm}
+            onPress={() => onConfirm(provider)}
             style={({ pressed }) => [
               styles.confirmButton,
               {
@@ -124,7 +148,7 @@ export function PaymentSheet({ visible, onClose, booking, onConfirm, palette, bu
               <ActivityIndicator color={palette.onPrimary} />
             ) : (
               <Text style={[styles.confirmText, { color: palette.onPrimary }]}>
-                Confirm &amp; Pay {formatMoney(total, booking.currency)}
+                Continue to {provider === 'PAYSTACK' ? 'Paystack' : 'Flutterwave'} · {formatMoney(total, booking.currency)}
               </Text>
             )}
           </Pressable>
@@ -200,6 +224,8 @@ const styles = StyleSheet.create({
   breakDivider: { height: 1, marginVertical: 2 },
   totalLabel: { fontSize: 15, fontWeight: '800' },
   totalValue: { fontSize: 20, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  providerRow: { flexDirection: 'row', gap: 10 },
+  providerOption: { flex: 1 },
   methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,13 +233,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    gap: 12,
+    gap: 10,
   },
   methodIcon: { width: 36, height: 36, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   methodEmoji: { fontSize: 20 },
-  methodInfo: { flex: 1, gap: 2 },
-  methodTitle: { fontSize: 14, fontWeight: '800' },
-  methodSub: { fontSize: 12, fontWeight: '600' },
+  methodTitle: { flex: 1, fontSize: 14, fontWeight: '800' },
   methodCheckWrap: {
     width: 22,
     height: 22,

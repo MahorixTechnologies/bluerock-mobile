@@ -6,9 +6,10 @@ import {
   resolveListingStatus,
   type ListingStatus,
 } from '@/components/ListingStatusTag';
+import { useFavorites } from '@/providers/FavoritesProvider';
 import { Href, Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const CARD_RADIUS = 28;
@@ -18,26 +19,25 @@ type ListingCardProps = {
   item: Listing;
   href: Href;
   variant?: 'featured' | 'list';
-  /** Footer actions: save (heart) for renters, manage (edit + tenants) for landlords. */
-  actions?: 'save' | 'manage';
-  onEdit?: () => void;
-  onManage?: () => void;
 };
 
 function HeartButton({
+  listingId,
   tintColor,
   overlay = false,
 }: {
+  listingId: string;
   tintColor: string;
   overlay?: boolean;
 }) {
-  const [saved, setSaved] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const saved = isFavorite(listingId);
   return (
     <Pressable
       hitSlop={8}
       onPress={(e) => {
         e.stopPropagation?.();
-        setSaved((v) => !v);
+        toggleFavorite(listingId);
       }}
       style={({ pressed }) => [
         overlay ? styles.heartOverlay : null,
@@ -62,51 +62,6 @@ function HeartButton({
         weight={overlay ? 'semibold' : 'regular'}
       />
     </Pressable>
-  );
-}
-
-function ManageActions({
-  tintColor,
-  onEdit,
-  onManage,
-}: {
-  tintColor: string;
-  onEdit?: () => void;
-  onManage?: () => void;
-}) {
-  return (
-    <View style={styles.actionRow}>
-      <Pressable
-        hitSlop={8}
-        onPress={(e) => {
-          e.stopPropagation?.();
-          onEdit?.();
-        }}
-        style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-      >
-        <SymbolView
-          name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' } as any}
-          size={22}
-          tintColor={tintColor}
-          weight="regular"
-        />
-      </Pressable>
-      <Pressable
-        hitSlop={8}
-        onPress={(e) => {
-          e.stopPropagation?.();
-          onManage?.();
-        }}
-        style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-      >
-        <SymbolView
-          name={{ ios: 'person.2', android: 'group', web: 'group' } as any}
-          size={22}
-          tintColor={tintColor}
-          weight="regular"
-        />
-      </Pressable>
-    </View>
   );
 }
 
@@ -149,9 +104,6 @@ export function ListingCard({
   item,
   href,
   variant = 'featured',
-  actions = 'save',
-  onEdit,
-  onManage,
 }: ListingCardProps) {
   const { palette, isDark } = useAppTheme();
   const imageUri = item.images[0];
@@ -221,7 +173,7 @@ export function ListingCard({
                 size="large"
               />
             )}
-            <HeartButton tintColor="#ffffff" overlay />
+            <HeartButton listingId={item.id} tintColor="#ffffff" overlay />
           </View>
 
           <View style={styles.cardContent}>
@@ -313,15 +265,7 @@ export function ListingCard({
                 /night
               </Text>
             </Text>
-            {actions === 'manage' ? (
-              <ManageActions
-                tintColor={palette.text}
-                onEdit={onEdit}
-                onManage={onManage}
-              />
-            ) : (
-              <HeartButton tintColor={palette.text} />
-            )}
+            <HeartButton listingId={item.id} tintColor={palette.text} />
           </View>
         </View>
       </Pressable>
@@ -358,11 +302,6 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
   },
   ratingBadge: {
     flexDirection: 'row',
@@ -478,16 +417,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 14,
     left: 14,
-  },
-  listStatusBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  listStatusText: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.1,
   },
   listBody: {
     gap: 6,

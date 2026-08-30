@@ -18,9 +18,11 @@ type AuthContextValue = {
     phone?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<string | null>;
+  confirmPasswordReset: (params: { token: string; newPassword: string }) => Promise<void>;
   markEmailVerified: () => Promise<void>;
   updateProfile: (profile: Pick<UserProfile, 'name' | 'phone'>) => Promise<void>;
+  applyForLandlord: () => Promise<void>;
 };
 
 const PROFILE_KEY = 'bluerock.profile.v1';
@@ -105,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               phone: String(me?.phone ?? ''),
               emailVerified: Boolean(me?.emailVerified),
               role: (me?.role as UserProfile['role']) ?? safeLocal.role,
+              ownerApplicationStatus:
+                (me?.ownerApplicationStatus as UserProfile['ownerApplicationStatus']) ??
+                safeLocal.ownerApplicationStatus ??
+                'NONE',
+              ownerApplicationAt: me?.ownerApplicationAt ?? safeLocal.ownerApplicationAt ?? null,
             };
             await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
             if (isMounted) {
@@ -244,13 +251,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       requestPasswordReset: async (email) => {
         if (process.env.EXPO_PUBLIC_API_URL) {
-          await apiFetch('/auth/forgot-password', {
+          const payload = await apiFetch('/auth/forgot-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email }),
           });
-          return;
+          const token = (payload as any)?.passwordResetToken;
+          return typeof token === 'string' ? token : null;
         }
+        return null;
+      },
+      confirmPasswordReset: async ({ token, newPassword }) => {
+        if (!process.env.EXPO_PUBLIC_API_URL) {
+          throw new Error('Password reset requires a connected server. Configure EXPO_PUBLIC_API_URL.');
+        }
+        await apiFetch('/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, newPassword }),
+        });
       },
       markEmailVerified: async () => {
         if (!profile) return;
@@ -268,6 +287,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify({ name, phone }),
           });
         }
+        await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
+        setProfile(nextProfile);
+      },
+      applyForLandlord: async () => {
+        if (!profile) return;
+        if (profile.role !== 'RENTER') {
+          throw new Error('Only renter accounts can apply to become a landlord.');
+        }
+        if (profile.ownerApplicationStatus === 'PENDING') {
+          throw new Error('You already have a pending landlord application.');
+        }
+
+        if (process.env.EXPO_PUBLIC_API_URL) {
+          const payload = await apiFetch('/users/me/owner-application', {
+            method: 'POST',
+          });
+          const nextProfile: UserProfile = {
+            ...profile,
+            ownerApplicationStatus:
+              ((payload as any)?.ownerApplicationStatus as UserProfile['ownerApplicationStatus']) ??
+              'PENDING',
+            ownerApplicationAt: (payload as any)?.ownerApplicationAt ?? new Date().toISOString(),
+          };
+          await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
+          setProfile(nextProfile);
+          return;
+        }
+
+        const nextProfile: UserProfile = {
+          ...profile,
+          ownerApplicationStatus: 'PENDING',
+          ownerApplicationAt: new Date().toISOString(),
+        };
         await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
         setProfile(nextProfile);
       },

@@ -1,29 +1,22 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { View } from '@/components/Themed';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function AppEntryScreen() {
-  const { status, profile } = useAuth();
+  const { status } = useAuth();
+  const { palette } = useAppTheme();
 
   if (status === 'loading') {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#2563eb" />
+      <View style={[styles.loading, { backgroundColor: palette.bg }]}>
+        <ActivityIndicator size="large" color={palette.primary} />
       </View>
     );
   }
 
-  if (status === 'signedIn') {
-    const role = profile?.role ?? 'RENTER';
-    if (role === 'LANDLORD') {
-      return <Redirect href="/(tabs)" />;
-    }
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href="/(tabs)" />;
 }
 
 const styles = StyleSheet.create({

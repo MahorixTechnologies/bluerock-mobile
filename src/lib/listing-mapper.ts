@@ -70,6 +70,8 @@ export function mapApiListing(value: unknown, hostFallbackName = 'Host'): Listin
         ? data.occupancyStatus
         : undefined,
     featured: Boolean(data.featured ?? data.isFeatured),
+    featuredUntil: typeof data.featuredUntil === 'string' ? data.featuredUntil : undefined,
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : undefined,
     host: {
       name: readString(owner.name, hostFallbackName),
       phone: typeof owner.phone === 'string' ? owner.phone : undefined,

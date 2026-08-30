@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { ColorValue } from "react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -16,11 +16,12 @@ import { useAuth } from "@/providers/AuthProvider";
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const DURATION = 220;
 
-const BAR_BG = "#22222a";
-const ACTIVE_PILL_BG = "rgba(255,255,255,0.10)";
-const ACTIVE_PILL_BORDER = "rgba(255,255,255,0.12)";
-const ACTIVE_COLOR = "#ffffff";
-const INACTIVE_COLOR = "rgba(255,255,255,0.55)";
+const BAR_BG = "#ffffff";
+const ACTIVE_PILL_BG = "rgba(30,91,255,0.10)";
+const ACTIVE_PILL_BORDER = "rgba(30,91,255,0.14)";
+const ACTIVE_COLOR = "#1E5BFF";
+const INACTIVE_COLOR = "#8a8f9a";
+const BAR_BORDER = "rgba(20,20,20,0.06)";
 
 function TabSymbol({
   ios,
@@ -59,18 +60,12 @@ function TabItem({
   renderIcon: (color: ColorValue) => React.ReactNode;
 }) {
   const progress = useSharedValue(focused ? 1 : 0);
-  const [labelWidth, setLabelWidth] = useState(0);
 
   useEffect(() => {
     progress.value = withTiming(focused ? 1 : 0, { duration: DURATION });
   }, [focused, progress]);
 
   const pillStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
-  const labelStyle = useAnimatedStyle(() => ({
-    width: labelWidth * progress.value,
-    marginLeft: 8 * progress.value,
-    opacity: progress.value,
-  }));
 
   return (
     <AnimatedPressable
@@ -83,23 +78,9 @@ function TabItem({
     >
       <Animated.View style={[styles.pill, pillStyle]} pointerEvents="none" />
       {renderIcon(focused ? ACTIVE_COLOR : INACTIVE_COLOR)}
-      <Animated.View
-        style={[styles.labelWrap, labelStyle]}
-        pointerEvents="none"
-      >
-        <Text
-          numberOfLines={1}
-          style={[styles.label, { width: labelWidth || undefined }]}
-        >
-          {label}
-        </Text>
-      </Animated.View>
-      {/* Hidden measurer: reports the label's natural width without affecting layout. */}
       <Text
-        aria-hidden
         numberOfLines={1}
-        onLayout={(e) => setLabelWidth(Math.ceil(e.nativeEvent.layout.width))}
-        style={[styles.label, styles.measure]}
+        style={[styles.label, { color: focused ? ACTIVE_COLOR : INACTIVE_COLOR }]}
       >
         {label}
       </Text>
@@ -174,6 +155,7 @@ export default function TabLayout() {
 
   const hideIfLandlord = { display: isLandlord ? ("none" as const) : ("flex" as const) };
   const hideIfNotLandlord = { display: isLandlord ? ("flex" as const) : ("none" as const) };
+  const alwaysHidden = { display: "none" as const };
 
   return (
     <Tabs
@@ -192,30 +174,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: isLandlord ? "Dashboard" : "Home",
           tabBarIcon: ({ color, focused }) => (
             <TabSymbol
-              ios="house.fill"
-              android="home"
+              ios={isLandlord ? "square.grid.2x2.fill" : "house.fill"}
+              android={isLandlord ? "dashboard" : "home"}
               color={color}
               focused={focused}
             />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color, focused }) => (
-            <TabSymbol
-              ios="magnifyingglass"
-              android="search"
-              color={color}
-              focused={focused}
-            />
-          ),
-          tabBarItemStyle: hideIfLandlord,
         }}
       />
       <Tabs.Screen
@@ -234,11 +201,25 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Saved",
+          tabBarIcon: ({ color, focused }) => (
+            <TabSymbol
+              ios="heart.fill"
+              android="favorite"
+              color={color}
+              focused={focused}
+            />
+          ),
+          tabBarItemStyle: hideIfLandlord,
+        }}
+      />
+      <Tabs.Screen
         name="host-listings"
         options={{
           title: "My Listings",
           tabBarLabel: "My Listings",
-          href: null,
           tabBarIcon: ({ color, focused }) => (
             <TabSymbol
               ios="building.2.fill"
@@ -253,9 +234,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="host-bookings"
         options={{
-          title: "Guest Bookings",
-          tabBarLabel: "Guest Bookings",
-          href: null,
+          title: "Bookings",
+          tabBarLabel: "Bookings",
           tabBarIcon: ({ color, focused }) => (
             <TabSymbol
               ios="person.2.fill"
@@ -270,7 +250,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="payouts"
         options={{
-          title: "Payouts",
+          title: "Payout",
           tabBarIcon: ({ color, focused }) => (
             <TabSymbol
               ios="wallet.pass"
@@ -279,6 +259,22 @@ export default function TabLayout() {
               focused={focused}
             />
           ),
+          tabBarItemStyle: hideIfNotLandlord,
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: "Search",
+          tabBarIcon: ({ color, focused }) => (
+            <TabSymbol
+              ios="magnifyingglass"
+              android="search"
+              color={color}
+              focused={focused}
+            />
+          ),
+          tabBarItemStyle: alwaysHidden,
         }}
       />
       <Tabs.Screen
@@ -311,24 +307,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 64,
-    paddingHorizontal: 10,
-    borderRadius: 34,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BAR_BORDER,
     backgroundColor: BAR_BG,
     shadowColor: "#000000",
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   },
   item: {
-    height: 48,
+    flex: 1,
     minWidth: 48,
-    paddingHorizontal: 13,
-    borderRadius: 24,
-    flexDirection: "row",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
+    gap: 3,
   },
   pill: {
     position: "absolute",
@@ -336,25 +336,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 24,
+    borderRadius: 999,
     backgroundColor: ACTIVE_PILL_BG,
     borderWidth: 1,
     borderColor: ACTIVE_PILL_BORDER,
   },
-  labelWrap: {
-    overflow: "hidden",
-    justifyContent: "center",
-  },
   label: {
-    color: ACTIVE_COLOR,
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.1,
-  },
-  measure: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    opacity: 0,
   },
 });

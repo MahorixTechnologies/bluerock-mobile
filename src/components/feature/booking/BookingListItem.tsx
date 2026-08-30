@@ -1,82 +1,72 @@
 import { SymbolView } from 'expo-symbols';
 import { Href, Link } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatMoney } from '@/lib/format';
 import type { Booking, PaymentStatus, BookingStatus as BookingStatusType, Receipt } from '@/lib/models';
-import { createPaymentIntent, confirmPayment, getReceiptForBooking, isRefundEligible } from '@/lib/payments';
+import { getReceiptForBooking, isRefundEligible, recordReceiptForPaidBooking } from '@/lib/payments';
 import { useBookings } from '@/providers/BookingProvider';
-import { PaymentSheet } from '@/components/payments/PaymentSheet';
+import { PaymentSheet, type PaymentProvider } from '@/components/payments/PaymentSheet';
 import { ReceiptSheet } from '@/components/payments/ReceiptSheet';
 
 import type { BookingPalette } from './types';
-import { bookingStatus, prettyDate } from './utils';
+import { prettyDate } from './utils';
 
 type BookingListItemProps = {
   item: Booking;
   palette: BookingPalette;
-  todayUtc: number;
+  imageUri?: string;
 };
 
-function statusBadgeStyle(status: BookingStatusType, palette: BookingPalette) {
+function statusTone(status: BookingStatusType, palette: BookingPalette) {
   switch (status) {
     case 'PENDING':
-      return { bg: palette.warningSoft, fg: palette.warning };
+      return palette.warning;
     case 'CONFIRMED':
     case 'COMPLETED':
-      return { bg: palette.successSoft, fg: palette.success };
+      return palette.success;
     default:
-      return { bg: palette.dangerSoft, fg: palette.danger };
+      return palette.danger;
   }
 }
 
-function paymentBadgeStyle(status: PaymentStatus, palette: BookingPalette) {
+function paymentTone(status: PaymentStatus, palette: BookingPalette) {
   switch (status) {
     case 'PAID':
-      return { bg: palette.successSoft, fg: palette.success };
+      return palette.success;
     case 'UNPAID':
-      return { bg: palette.warningSoft, fg: palette.warning };
+      return palette.warning;
     case 'REFUNDED':
-      return { bg: palette.soft, fg: palette.muted };
-    default:
-      return { bg: palette.dangerSoft, fg: palette.danger };
+      return palette.muted;
   }
 }
 
-export function BookingListItem({ item, palette, todayUtc }: BookingListItemProps) {
+export function BookingListItem({ item, palette, imageUri }: BookingListItemProps) {
   const { payBooking, refundBooking } = useBookings();
-  const upcoming = bookingStatus(item.endDate, todayUtc) === 'Upcoming';
-  const badgeBg = upcoming ? palette.successSoft : palette.soft;
-  const badgeColor = upcoming ? palette.success : palette.muted;
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const [receiptSheetVisible, setReceiptSheetVisible] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<Receipt | null>(null);
   const [payBusy, setPayBusy] = useState(false);
 
-  const statusStyle = statusBadgeStyle(item.status, palette);
-  const payStyle = paymentBadgeStyle(item.paymentStatus, palette);
   const refundOk = isRefundEligible(item);
 
   const openReceipt = () => {
-    let receipt = getReceiptForBooking(item.id);
-    if (!receipt) {
-      const intent = createPaymentIntent(item);
-      const out = confirmPayment(intent.id, 'Card');
-      receipt = out.receipt;
-    }
+    const receipt = getReceiptForBooking(item.id) ?? recordReceiptForPaidBooking(item);
     setActiveReceipt(receipt);
     setReceiptSheetVisible(true);
   };
 
-  const onConfirmPay = async () => {
+  const onConfirmPay = async (provider: PaymentProvider) => {
     if (payBusy) return;
     try {
       setPayBusy(true);
-      await payBooking(item.id);
+      await payBooking(item.id, provider);
+      setPaymentSheetVisible(false);
+    } catch (err) {
+      Alert.alert('Payment failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setPayBusy(false);
-      setPaymentSheetVisible(false);
     }
   };
 
@@ -110,93 +100,60 @@ export function BookingListItem({ item, palette, todayUtc }: BookingListItemProp
               opacity: pressed ? 0.96 : 1,
             },
           ]}>
-          <View style={styles.bookingCardTop}>
-            <View style={[styles.bookingIconBubble, { backgroundColor: palette.primarySoft }]}>
-              <SymbolView
-                name={{ ios: 'bed.double.fill', android: 'hotel', web: 'hotel' } as any}
-                size={18}
-                tintColor={palette.primary}
-              />
-            </View>
-            <View style={styles.bookingTitleWrap}>
-              <Text style={[styles.eyebrow, { color: palette.muted }]}>Reserved stay</Text>
-              <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={1}>
-                {item.listingTitle || 'Listing'}
-              </Text>
-              <Text style={[styles.cardSubtitle, { color: palette.muted }]} numberOfLines={1}>
-                {item.location}
-              </Text>
-            </View>
-            <View style={styles.badgeStack}>
-              <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
-                <Text style={[styles.badgeText, { color: statusStyle.fg }]}>{item.status}</Text>
+          <View style={styles.imageWrap}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.image} />
+            ) : (
+              <View style={[styles.image, styles.imagePlaceholder]}>
+                <SymbolView
+                  name={{ ios: 'bed.double.fill', android: 'hotel', web: 'hotel' } as any}
+                  size={30}
+                  tintColor="#ffffff"
+                />
               </View>
-              <View style={[styles.badge, { backgroundColor: payStyle.bg }]}>
-                <Text style={[styles.badgeText, { color: payStyle.fg }]}>{item.paymentStatus}</Text>
+            )}
+            <View style={styles.scrim} />
+            <View style={styles.badgeOverlayRow}>
+              <View style={styles.overlayBadge}>
+                <View style={[styles.overlayDot, { backgroundColor: statusTone(item.status, palette) }]} />
+                <Text style={styles.overlayBadgeText}>{item.status}</Text>
+              </View>
+              <View style={styles.overlayBadge}>
+                <View style={[styles.overlayDot, { backgroundColor: paymentTone(item.paymentStatus, palette) }]} />
+                <Text style={styles.overlayBadgeText}>{item.paymentStatus}</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.infoGrid}>
-            <View style={[styles.infoTile, { backgroundColor: palette.soft }]}>
-              <Text style={[styles.infoLabel, { color: palette.muted }]}>Dates</Text>
-              <Text style={[styles.infoValue, { color: palette.text }]}>
-                {prettyDate(item.startDate)} - {prettyDate(item.endDate)}
-              </Text>
-            </View>
-            <View style={[styles.infoTile, { backgroundColor: palette.soft }]}>
-              <Text style={[styles.infoLabel, { color: palette.muted }]}>Total</Text>
-              <Text style={[styles.infoValue, { color: palette.text }]}>{formatMoney(item.total, item.currency)}</Text>
-            </View>
-          </View>
+          <View style={styles.body}>
+            <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={1}>
+              {item.listingTitle || 'Listing'}
+            </Text>
+            <Text style={[styles.cardSubtitle, { color: palette.muted }]} numberOfLines={1}>
+              {item.location}
+            </Text>
 
-          <View style={styles.metaRow}>
-            <View style={[styles.metaChip, { backgroundColor: palette.soft }]}>
+            <View style={styles.metaRow}>
               <SymbolView
-                name={{ ios: 'moon.stars.fill', android: 'hotel', web: 'hotel' } as any}
-                size={13}
+                name={{ ios: 'calendar', android: 'event', web: 'event' } as any}
+                size={14}
                 tintColor={palette.muted}
               />
-              <Text style={[styles.meta, { color: palette.muted }]}>{item.nights} nights</Text>
-            </View>
-            <View style={[styles.metaChip, { backgroundColor: palette.soft }]}>
-              <SymbolView
-                name={{ ios: 'creditcard.fill', android: 'payments', web: 'payments' } as any}
-                size={13}
-                tintColor={palette.muted}
-              />
-              <Text style={[styles.meta, { color: palette.muted }]}>Fee {formatMoney(item.serviceFee, item.currency)}</Text>
-            </View>
-            <View style={[styles.metaChip, { backgroundColor: palette.soft }]}>
-              <SymbolView
-                name={{ ios: 'wallet.pass.fill', android: 'payments', web: 'payments' } as any}
-                size={13}
-                tintColor={palette.muted}
-              />
-              <Text style={[styles.meta, { color: palette.muted }]}>
-                {formatMoney(item.pricePerNight, item.currency)}/night
+              <Text style={[styles.meta, { color: palette.muted }]} numberOfLines={1}>
+                {prettyDate(item.startDate)} - {prettyDate(item.endDate)} · {item.nights} nights
               </Text>
             </View>
-          </View>
 
-          <View style={[styles.priceGrid, { borderTopColor: palette.border }]}>
-            <View style={styles.priceRow}>
-              <Text style={[styles.priceLabel, { color: palette.muted }]}>Subtotal</Text>
-              <Text style={[styles.priceValue, { color: palette.text }]}>
-                {formatMoney(item.subtotal, item.currency)}
+            <View style={[styles.priceGrid, { borderTopColor: palette.border }]}>
+              <Text style={[styles.priceLabel, { color: palette.muted }]}>
+                {formatMoney(item.pricePerNight, item.currency)}/night · Fee {formatMoney(item.serviceFee, item.currency)}
               </Text>
-            </View>
-            <View style={styles.priceRow}>
-              <Text style={[styles.priceLabel, { color: palette.muted }]}>Service fee</Text>
-              <Text style={[styles.priceValue, { color: palette.text }]}>
-                {formatMoney(item.serviceFee, item.currency)}
-              </Text>
-            </View>
-            <View style={styles.priceRow}>
-              <Text style={[styles.priceLabelTotal, { color: palette.text }]}>Total</Text>
-              <Text style={[styles.priceValueTotal, { color: palette.primary }]}>
-                {formatMoney(item.total, item.currency)}
-              </Text>
+              <View style={styles.priceTotalWrap}>
+                <Text style={[styles.priceLabelTotal, { color: palette.muted }]}>Total</Text>
+                <Text style={[styles.priceValueTotal, { color: palette.primary }]}>
+                  {formatMoney(item.total, item.currency)}
+                </Text>
+              </View>
             </View>
           </View>
         </Pressable>
@@ -243,7 +200,7 @@ export function BookingListItem({ item, palette, todayUtc }: BookingListItemProp
                   { backgroundColor: palette.danger, opacity: pressed ? 0.9 : 1 },
                 ]}
               >
-                <Text style={[styles.actionDangerText, { color: palette.onPrimary ?? '#ffffff' }]}>Refund</Text>
+                <Text style={[styles.actionDangerText, { color: palette.onPrimary }]}>Refund</Text>
               </Pressable>
             )}
           </>
@@ -274,49 +231,70 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
     borderWidth: 1,
-    padding: 18,
-    gap: 18,
+    overflow: 'hidden',
     shadowOpacity: 0.05,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 7 },
     elevation: 3,
-    backgroundColor: 'white',
   },
-  bookingCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-  bookingIconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+  imageWrap: { width: '100%', height: 160, position: 'relative' },
+  image: { width: '100%', height: '100%' },
+  imagePlaceholder: {
+    backgroundColor: '#b9bdc7',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bookingTitleWrap: { flex: 1, gap: 6 },
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-  cardTitle: { fontSize: 16, fontWeight: '800', lineHeight: 22 },
-  cardSubtitle: { fontSize: 13, lineHeight: 18 },
-  badgeStack: { alignItems: 'flex-end', gap: 6 },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  badgeText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
-  infoGrid: { flexDirection: 'row', gap: 8, marginVertical: 0 },
-  infoTile: { flex: 1, borderRadius: 18, padding: 14, gap: 8 },
-  infoLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-  infoValue: { fontSize: 14, fontWeight: '800', lineHeight: 19 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metaChip: {
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 64,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+  },
+  badgeOverlayRow: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  overlayBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(17,24,39,0.55)',
   },
-  meta: { fontSize: 12, fontWeight: '600' },
-  priceGrid: { borderTopWidth: 1, paddingTop: 14, gap: 8 },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  priceLabel: { fontSize: 13, fontWeight: '600' },
-  priceValue: { fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  priceLabelTotal: { fontSize: 14, fontWeight: '900' },
-  priceValueTotal: { fontSize: 16, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  overlayDot: { width: 6, height: 6, borderRadius: 3 },
+  overlayBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    color: '#ffffff',
+  },
+  body: { padding: 18, gap: 6 },
+  cardTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3, lineHeight: 24 },
+  cardSubtitle: { fontSize: 13, lineHeight: 18 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  meta: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  priceGrid: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    paddingTop: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  priceLabel: { flex: 1, fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  priceTotalWrap: { alignItems: 'flex-end' },
+  priceLabelTotal: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, textTransform: 'uppercase' },
+  priceValueTotal: { fontSize: 18, fontWeight: '900', fontVariant: ['tabular-nums'] },
   actionBar: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   actionPrimary: {
     flex: 1,

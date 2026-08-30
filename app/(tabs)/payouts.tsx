@@ -1,5 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { Link } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -12,6 +13,7 @@ import type { PayoutBatch } from '@/lib/payouts-data';
 export default function PayoutsScreen() {
   const { palette } = useAppTheme();
   const { profile } = useAuth();
+  const [showWithdrawNotice, setShowWithdrawNotice] = useState(false);
 
   if (profile?.role !== 'LANDLORD') {
     return (
@@ -55,6 +57,17 @@ export default function PayoutsScreen() {
       <Text style={[styles.subtitle, { color: palette.muted }]}>
         Track expected earnings and completed transfers.
       </Text>
+
+      <View style={[styles.previewBanner, { backgroundColor: palette.warningSoft }]}>
+        <SymbolView
+          name={{ ios: 'exclamationmark.circle.fill', android: 'info', web: 'info' } as any}
+          size={14}
+          tintColor={palette.warning}
+        />
+        <Text style={[styles.previewBannerText, { color: palette.warning }]}>
+          Preview data — live payouts aren't connected yet.
+        </Text>
+      </View>
 
       <View style={styles.kpiGrid}>
         <StatCard
@@ -164,13 +177,26 @@ export default function PayoutsScreen() {
             </View>
 
             <Pressable
+              onPress={() => setShowWithdrawNotice(true)}
               style={({ pressed }) => [
                 styles.withdrawButton,
-                { backgroundColor: palette.primary, opacity: pressed ? 0.92 : 1 },
+                { backgroundColor: palette.primarySoft, opacity: pressed ? 0.85 : 1 },
               ]}
             >
-              <Text style={[styles.withdrawText, { color: palette.onPrimary }]}>Withdraw to Bank</Text>
+              <Text style={[styles.withdrawText, { color: palette.primary }]}>Withdraw to Bank</Text>
             </Pressable>
+            {showWithdrawNotice ? (
+              <View style={[styles.withdrawNotice, { backgroundColor: palette.warningSoft }]}>
+                <SymbolView
+                  name={{ ios: 'clock.fill', android: 'schedule', web: 'schedule' } as any}
+                  size={14}
+                  tintColor={palette.warning}
+                />
+                <Text style={[styles.withdrawNoticeText, { color: palette.warning }]}>
+                  Bank withdrawals aren't available yet.
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <View
@@ -309,6 +335,16 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { fontWeight: '800', fontSize: 16 },
 
+  previewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  previewBannerText: { fontSize: 12, fontWeight: '700', flex: 1, lineHeight: 16 },
+
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -404,6 +440,15 @@ const styles = StyleSheet.create({
     minHeight: 54,
   },
   withdrawText: { fontSize: 15, fontWeight: '800' },
+  withdrawNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  withdrawNoticeText: { fontSize: 12, fontWeight: '700', flex: 1, lineHeight: 16 },
 
   methodList: { gap: 0 },
   methodRow: {
@@ -413,7 +458,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  methodRowLast: {},
   methodIconTile: {
     width: 44,
     height: 44,

@@ -1,4 +1,5 @@
-import { Redirect } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { Href, Link, Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -61,10 +62,28 @@ export default function SearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
-      <Text style={[styles.title, { color: palette.text }]}>Search & filter</Text>
-      <Text style={[styles.subtitle, { color: palette.muted }]}>
-        Find listings by location, price, and rooms.
-      </Text>
+      <View style={styles.titleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: palette.text }]}>Search & filter</Text>
+          <Text style={[styles.subtitle, { color: palette.muted }]}>
+            Find listings by location, price, and rooms.
+          </Text>
+        </View>
+        <Link href={'/saved-listings' as Href} asChild>
+          <Pressable
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.savedButton,
+              { backgroundColor: palette.card, borderColor: palette.border, opacity: pressed ? 0.7 : 1 },
+            ]}>
+            <SymbolView
+              name={{ ios: 'heart.fill', android: 'favorite', web: 'favorite' } as any}
+              size={18}
+              tintColor={palette.danger}
+            />
+          </Pressable>
+        </Link>
+      </View>
 
       <View style={styles.filters}>
         <SearchInput
@@ -163,6 +182,15 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  savedButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   title: { fontSize: 26, fontWeight: '800' },
   subtitle: { marginTop: 6, fontSize: 14 },
   filters: { marginTop: 14, gap: 10 },

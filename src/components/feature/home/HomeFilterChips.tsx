@@ -1,22 +1,22 @@
-import { SymbolView } from 'expo-symbols';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import type { AppPalette } from '@/constants/theme';
 
 type HomeFilterChipsProps = {
   chips: string[];
   palette: AppPalette;
+  selected?: string;
   onSelect?: (chip: string, index: number) => void;
 };
 
-export function HomeFilterChips({ chips, palette, onSelect }: HomeFilterChipsProps) {
+export function HomeFilterChips({ chips, palette, selected, onSelect }: HomeFilterChipsProps) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.chipRow}>
       {chips.map((chip, index) => {
-        const active = index === 0;
+        const active = selected != null ? chip === selected : index === 0;
         return (
           <Pressable
             key={`${chip}-${index}`}
@@ -31,26 +31,6 @@ export function HomeFilterChips({ chips, palette, onSelect }: HomeFilterChipsPro
                 opacity: pressed ? 0.92 : 1,
               },
             ]}>
-            <View
-              style={[
-                styles.chipIconWrap,
-                {
-                  backgroundColor: active ? 'rgba(255,255,255,0.22)' : palette.soft,
-                },
-              ]}>
-              <SymbolView
-                name={
-                  {
-                    ios: active ? 'flame.fill' : 'mappin',
-                    android: active ? 'local-fire-department' : 'place',
-                    web: active ? 'local-fire-department' : 'place',
-                  } as any
-                }
-                size={14}
-                tintColor={active ? palette.onPrimary : palette.muted}
-                weight="semibold"
-              />
-            </View>
             <Text
               style={[
                 styles.filterChipText,
@@ -78,13 +58,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-  },
-  chipIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   filterChipText: { fontSize: 13, fontWeight: '800', letterSpacing: -0.1 },
 });

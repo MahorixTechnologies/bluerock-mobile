@@ -33,6 +33,8 @@ export type Listing = {
   occupancyStatus?: 'Occupied' | 'Vacant' | 'Draft';
   /** Hand-picked homes surfaced in the "Featured Homes" carousel. */
   featured?: boolean;
+  featuredUntil?: string;
+  createdAt?: string;
   host: {
     name: string;
     phone?: string;
@@ -116,10 +118,14 @@ export type Booking = {
   refundId?: string;
 };
 
+export type OwnerApplicationStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export type UserProfile = {
   email: string;
   name: string;
   phone: string;
   emailVerified: boolean;
   role: UserRole;
+  ownerApplicationStatus?: OwnerApplicationStatus;
+  ownerApplicationAt?: string | null;
 };

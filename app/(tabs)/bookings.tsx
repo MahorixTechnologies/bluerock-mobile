@@ -12,6 +12,7 @@ import type { Booking } from '@/lib/models';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 import { useBookings } from '@/providers/BookingProvider';
+import { useListings } from '@/hooks/useListings';
 
 type BookingSection = {
   key: string;
@@ -24,6 +25,10 @@ export default function BookingsScreen() {
   const { palette } = useAppTheme();
   const { status, profile } = useAuth();
   const { bookings, createFakeBooking } = useBookings();
+  const { data: listings = [] } = useListings();
+  const listingImages = Object.fromEntries(
+    listings.map((listing) => [listing.id, listing.images[0]]),
+  ) as Record<string, string | undefined>;
 
   if (profile?.role === 'LANDLORD') {
     return <Redirect href="/(tabs)/host-bookings" />;
@@ -123,6 +128,7 @@ export default function BookingsScreen() {
                 booking={featuredBooking}
                 todayUtc={todayUtc}
                 range={range}
+                imageUri={listingImages[featuredBooking.listingId]}
               />
             ) : null}
 
@@ -136,7 +142,7 @@ export default function BookingsScreen() {
                   opacity: pressed ? 0.9 : 1,
                 },
               ]}>
-              <View style={styles.demoButtonIcon}>
+              <View style={[styles.demoButtonIcon, { backgroundColor: palette.card }]}>
                 <SymbolView
                   name={{ ios: 'plus', android: 'add', web: 'add' } as any}
                   size={16}
@@ -172,7 +178,11 @@ export default function BookingsScreen() {
         )}
         renderItem={({ item, index, section }) => (
           <View style={index === section.data.length - 1 ? styles.sectionCardWrap : styles.sectionCardGap}>
-            <BookingListItem item={item} palette={palette} todayUtc={todayUtc} />
+            <BookingListItem
+              item={item}
+              palette={palette}
+              imageUri={listingImages[item.listingId]}
+            />
           </View>
         )}
         SectionSeparatorComponent={() => <View style={styles.sectionSeparator} />}
@@ -185,9 +195,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 18, paddingTop: 20 },
   listContent: { paddingTop: 6, paddingBottom: 140 },
   headerWrap: { gap: 18, paddingBottom: 22 },
-  sectionCardGap: { marginBottom: 44 },
+  sectionCardGap: { marginBottom: 14 },
   sectionCardWrap: { marginBottom: 2 },
-  sectionSeparator: { height: 22 },
+  sectionSeparator: { height: 28 },
   signedOutCard: {
     marginTop: 12,
     borderRadius: 28,
@@ -229,7 +239,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },

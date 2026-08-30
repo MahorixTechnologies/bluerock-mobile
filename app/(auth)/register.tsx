@@ -9,30 +9,17 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
+  View,
 } from 'react-native';
 
 import TextField from '@/components/TextField';
-import { Text, useThemeColor, View } from '@/components/Themed';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 
-type RegisterStep = 'details' | 'verify' | 'password';
+type RegisterStep = 'details' | 'password';
 type UserRole = 'RENTER' | 'LANDLORD';
-
-const CODE_LENGTH = 6;
-
-function maskEmailAddress(value: string) {
-  const normalized = value.trim();
-  if (!normalized.includes('@')) return normalized || 'your email address';
-
-  const [name, domain] = normalized.split('@');
-  if (!name || !domain) return normalized;
-
-  const head = name.slice(0, 3);
-  const masked = `${head}${'*'.repeat(Math.max(3, name.length - head.length))}`;
-  return `${masked}@${domain}`;
-}
 
 function formatPhoneNumberForApi(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -62,33 +49,13 @@ export default function RegisterScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [resendTimer, setResendTimer] = useState(47);
   const [error, setError] = useState<string | null>(null);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
 
-  const codeInputRef = useRef<TextInput | null>(null);
   const cardAnimation = useRef(new Animated.Value(1)).current;
-
-  const textColor = useThemeColor({ light: '#0f172a', dark: '#f8fafc' }, 'text');
-  const subtleTextColor = useThemeColor(
-    { light: '#6b7280', dark: 'rgba(226,232,240,0.76)' },
-    'text',
-  );
-  const cardColor = useThemeColor({ light: '#f5f7fb', dark: '#111827' }, 'background');
-  const inputBackground = useThemeColor({ light: '#ffffff', dark: '#0f172a' }, 'background');
-  const borderColor = useThemeColor(
-    { light: 'rgba(15, 23, 42, 0.08)', dark: 'rgba(255,255,255,0.12)' },
-    'text',
-  );
-  const placeholderColor = useThemeColor(
-    { light: 'rgba(100, 116, 139, 0.62)', dark: 'rgba(203, 213, 225, 0.42)' },
-    'text',
-  );
 
   const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
   const isPasswordValid = passwordChecks.every((item) => item.passed);
@@ -98,9 +65,7 @@ export default function RegisterScreen() {
     lastName.trim().length > 0 &&
     email.trim().length > 0 &&
     phone.replace(/\D/g, '').length >= 9;
-  const canVerifyCode = verificationCode.length === CODE_LENGTH;
   const canCreateAccount = isPasswordValid && passwordsMatch && status !== 'loading';
-  const maskedEmail = useMemo(() => maskEmailAddress(email), [email]);
 
   useEffect(() => {
     cardAnimation.setValue(0);
@@ -111,23 +76,6 @@ export default function RegisterScreen() {
       useNativeDriver: true,
     }).start();
   }, [cardAnimation, step]);
-
-  useEffect(() => {
-    if (step !== 'verify') return;
-
-    const focusTimeout = setTimeout(() => {
-      codeInputRef.current?.focus();
-    }, 280);
-
-    return () => clearTimeout(focusTimeout);
-  }, [step]);
-
-  useEffect(() => {
-    if (step !== 'verify' || resendTimer <= 0) return;
-
-    const timer = setTimeout(() => setResendTimer((current) => current - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendTimer, step]);
 
   const animatedCardStyle = {
     opacity: cardAnimation,
@@ -143,43 +91,16 @@ export default function RegisterScreen() {
 
   const handleBack = () => {
     setError(null);
-    setVerificationError(null);
     if (step === 'details') {
       router.back();
       return;
     }
-
-    if (step === 'verify') {
-      setStep('details');
-      return;
-    }
-
-    setStep('verify');
+    setStep('details');
   };
 
   const handleContinue = () => {
     setError(null);
-    setVerificationError(null);
-    setResendTimer(47);
-    setStep('verify');
-  };
-
-  const handleVerify = () => {
-    if (!canVerifyCode) {
-      setVerificationError('Enter the 6-digit code sent to your phone.');
-      return;
-    }
-
-    setVerificationError(null);
     setStep('password');
-  };
-
-  const handleResend = () => {
-    if (resendTimer > 0) return;
-    setVerificationCode('');
-    setVerificationError(null);
-    setResendTimer(47);
-    codeInputRef.current?.focus();
   };
 
   const handleCreateAccount = async () => {
@@ -200,21 +121,14 @@ export default function RegisterScreen() {
     }
   };
 
-  const title =
-    step === 'details'
-      ? 'Create Account'
-      : step === 'verify'
-        ? 'Phone Verification'
-        : 'Create Password';
+  const title = step === 'details' ? 'Create Account' : 'Create Password';
 
   const subtitle =
     step === 'details'
       ? role === 'LANDLORD'
         ? 'Create your homeowner account to start managing your properties.'
         : 'Create your renter account to start booking and managing your stays.'
-      : step === 'verify'
-        ? 'Enter the 6-digit code sent to'
-        : 'Secure your account';
+      : 'Secure your account';
 
   return (
     <KeyboardAvoidingView
@@ -230,17 +144,17 @@ export default function RegisterScreen() {
           style={({ pressed }) => [
             styles.backButton,
             {
-              backgroundColor: inputBackground,
-              borderColor,
+              backgroundColor: palette.field,
+              borderColor: palette.border,
               opacity: pressed ? 0.82 : 1,
             },
           ]}>
-          <Text style={[styles.backIcon, { color: textColor }]}>‹</Text>
+          <Text style={[styles.backIcon, { color: palette.text }]}>‹</Text>
         </Pressable>
 
-        <View style={styles.headerBlock} lightColor="transparent" darkColor="transparent">
+        <View style={styles.headerBlock}>
           {step === 'details' ? (
-            <View style={styles.roleRow} lightColor="transparent" darkColor="transparent">
+            <View style={styles.roleRow}>
               {(['LANDLORD', 'RENTER'] as UserRole[]).map((value) => {
                 const active = role === value;
                 return (
@@ -250,15 +164,15 @@ export default function RegisterScreen() {
                     style={({ pressed }) => [
                       styles.roleChip,
                       {
-                        borderColor: active ? '#2f6bff' : borderColor,
-                        backgroundColor: active ? 'rgba(47, 107, 255, 0.10)' : inputBackground,
+                        borderColor: active ? palette.primary : palette.border,
+                        backgroundColor: active ? palette.primarySoft : palette.field,
                         opacity: pressed ? 0.88 : 1,
                       },
                     ]}>
                     <Text
                       style={[
                         styles.roleChipText,
-                        { color: active ? '#1d4ed8' : subtleTextColor },
+                        { color: active ? palette.primary : palette.muted },
                       ]}>
                       {value === 'LANDLORD' ? 'Homeowner' : 'Renter'}
                     </Text>
@@ -269,35 +183,24 @@ export default function RegisterScreen() {
           ) : null}
 
           <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-          {step === 'verify' ? (
-            <View style={styles.verifySubtitleWrap} lightColor="transparent" darkColor="transparent">
-              <Text style={[styles.subtitle, { color: subtleTextColor }]}>{subtitle}</Text>
-              <Text style={[styles.maskedEmail, { color: palette.text }]}>{maskedEmail}</Text>
-            </View>
-          ) : (
-            <Text style={[styles.subtitle, { color: subtleTextColor }]}>{subtitle}</Text>
-          )}
+          <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
         </View>
 
         <Animated.View
-          style={[
-            styles.card,
-            animatedCardStyle,
-            { backgroundColor: cardColor },
-          ]}>
+          style={[styles.card, animatedCardStyle, { backgroundColor: palette.card }]}>
           {step === 'details' ? (
-            <View style={styles.formBlock} lightColor="transparent" darkColor="transparent">
+            <View style={styles.formBlock}>
               <TextField
                 label="First Name"
                 value={firstName}
                 onChangeText={setFirstName}
                 autoCapitalize="words"
                 placeholder="Enter your first name"
-                labelColor={textColor}
-                textColor={textColor}
-                borderColor={borderColor}
-                backgroundColor={inputBackground}
-                placeholderTextColor={placeholderColor}
+                labelColor={palette.text}
+                textColor={palette.text}
+                borderColor={palette.border}
+                backgroundColor={palette.field}
+                placeholderTextColor={palette.placeholder}
                 inputStyle={styles.textFieldInput}
               />
 
@@ -307,11 +210,11 @@ export default function RegisterScreen() {
                 onChangeText={setLastName}
                 autoCapitalize="words"
                 placeholder="Enter your last name"
-                labelColor={textColor}
-                textColor={textColor}
-                borderColor={borderColor}
-                backgroundColor={inputBackground}
-                placeholderTextColor={placeholderColor}
+                labelColor={palette.text}
+                textColor={palette.text}
+                borderColor={palette.border}
+                backgroundColor={palette.field}
+                placeholderTextColor={palette.placeholder}
                 inputStyle={styles.textFieldInput}
               />
 
@@ -323,39 +226,34 @@ export default function RegisterScreen() {
                 autoCorrect={false}
                 keyboardType="email-address"
                 placeholder="Enter your email"
-                labelColor={textColor}
-                textColor={textColor}
-                borderColor={borderColor}
-                backgroundColor={inputBackground}
-                placeholderTextColor={placeholderColor}
+                labelColor={palette.text}
+                textColor={palette.text}
+                borderColor={palette.border}
+                backgroundColor={palette.field}
+                placeholderTextColor={palette.placeholder}
                 inputStyle={styles.textFieldInput}
               />
 
-              <View style={styles.fieldBlock} lightColor="transparent" darkColor="transparent">
-                <Text style={[styles.label, { color: textColor }]}>Phone Number</Text>
+              <View style={styles.fieldBlock}>
+                <Text style={[styles.label, { color: palette.text }]}>Phone Number</Text>
                 <View
                   style={[
                     styles.phoneRow,
                     {
-                      borderColor,
-                      backgroundColor: inputBackground,
+                      borderColor: palette.border,
+                      backgroundColor: palette.field,
                     },
-                  ]}
-                  lightColor="transparent"
-                  darkColor="transparent">
-                  <View
-                    style={[styles.phonePrefix, { borderColor }]}
-                    lightColor="transparent"
-                    darkColor="transparent">
-                    <Text style={[styles.phonePrefixText, { color: subtleTextColor }]}>+234</Text>
+                  ]}>
+                  <View style={[styles.phonePrefix, { borderColor: palette.border }]}>
+                    <Text style={[styles.phonePrefixText, { color: palette.muted }]}>+234</Text>
                   </View>
                   <TextInput
                     value={phone}
                     onChangeText={(value) => setPhone(value.replace(/[^\d]/g, '').slice(0, 10))}
                     keyboardType="number-pad"
                     placeholder="812 345 6789"
-                    placeholderTextColor={placeholderColor}
-                    style={[styles.phoneInput, { color: textColor }]}
+                    placeholderTextColor={palette.placeholder}
+                    style={[styles.phoneInput, { color: palette.text }]}
                   />
                 </View>
               </View>
@@ -367,162 +265,50 @@ export default function RegisterScreen() {
                   styles.primaryButton,
                   {
                     backgroundColor: canContinueDetails ? palette.primary : palette.primarySoft,
+                    shadowColor: palette.primary,
                     opacity: pressed ? 0.92 : 1,
                   },
                 ]}>
-                <Text style={styles.primaryButtonText}>Continue  →</Text>
+                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>Continue  →</Text>
               </Pressable>
 
-              <Text style={[styles.termsText, { color: subtleTextColor }]}>
+              <Text style={[styles.termsText, { color: palette.muted }]}>
                 By creating an account you agree to our{' '}
-                <Text style={styles.linkText}>Terms of Service</Text> &{' '}
-                <Text style={styles.linkText}>Privacy Policy</Text>
+                <Text style={[styles.linkText, { color: palette.primary }]}>Terms of Service</Text> &{' '}
+                <Text style={[styles.linkText, { color: palette.primary }]}>Privacy Policy</Text>
               </Text>
 
-              <View style={styles.inlineFooter} lightColor="transparent" darkColor="transparent">
-                <Text style={[styles.footerText, { color: subtleTextColor }]}>Already have an account?</Text>
+              <View style={styles.inlineFooter}>
+                <Text style={[styles.footerText, { color: palette.muted }]}>Already have an account?</Text>
                 <Link href="/(auth)/login" asChild>
                   <Pressable>
-                    <Text style={styles.linkText}>Sign in</Text>
+                    <Text style={[styles.linkText, { color: palette.primary }]}>Sign in</Text>
                   </Pressable>
                 </Link>
               </View>
             </View>
           ) : null}
 
-          {step === 'verify' ? (
-            <View style={styles.verifyBlock} lightColor="transparent" darkColor="transparent">
-              <View style={styles.verificationGraphic} lightColor="transparent" darkColor="transparent">
-                <View style={styles.orbitOuter} lightColor="transparent" darkColor="transparent" />
-                <View style={styles.orbitInner} lightColor="transparent" darkColor="transparent" />
-                <View style={styles.shieldWrap}>
-                  <Text style={styles.shieldIcon}>🛡️</Text>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={() => codeInputRef.current?.focus()}
-                style={styles.codeRow}
-                accessibilityRole="button">
-                {Array.from({ length: CODE_LENGTH }).map((_, index) => {
-                  const digit = verificationCode[index] ?? '';
-                  const isActive = index === verificationCode.length && verificationCode.length < CODE_LENGTH;
-                  const hasErrorState = Boolean(verificationError);
-                  return (
-                    <View
-                      key={`digit-${index}`}
-                      style={[
-                        styles.codeBox,
-                        {
-                          backgroundColor: inputBackground,
-                          borderColor: hasErrorState
-                            ? '#ef4444'
-                            : isActive
-                              ? '#2f6bff'
-                              : index < verificationCode.length
-                                ? 'rgba(47, 107, 255, 0.45)'
-                                : borderColor,
-                        },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.codeDigit,
-                          {
-                            color: hasErrorState ? '#dc2626' : '#1d4ed8',
-                          },
-                        ]}>
-                        {digit || (isActive ? '|' : '')}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </Pressable>
-
-              <TextInput
-                ref={codeInputRef}
-                value={verificationCode}
-                onChangeText={(value) => {
-                  setVerificationCode(value.replace(/\D/g, '').slice(0, CODE_LENGTH));
-                  setVerificationError(null);
-                }}
-                keyboardType="number-pad"
-                textContentType="oneTimeCode"
-                autoComplete="sms-otp"
-                style={styles.hiddenInput}
-              />
-
-              {verificationCode.length < CODE_LENGTH ? (
-                <Text style={[styles.resendText, { color: subtleTextColor }]}>
-                  Resend code in <Text style={styles.timerText}>00:{String(resendTimer).padStart(2, '0')}</Text>
-                </Text>
-              ) : (
-                <View style={styles.didntReceiveWrap} lightColor="transparent" darkColor="transparent">
-                  <Text style={[styles.resendText, { color: subtleTextColor }]}>Didn’t receive code?</Text>
-                  <Pressable
-                    onPress={handleResend}
-                    style={({ pressed }) => [
-                      styles.resendButton,
-                      {
-                        borderColor: '#b9cdfc',
-                        backgroundColor: pressed ? '#edf4ff' : '#f5f9ff',
-                      },
-                    ]}>
-                    <Text style={styles.resendButtonText}>↻  Resend Code</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {verificationError ? (
-                <Text style={styles.verificationError}>The code you entered was incorrect.</Text>
-              ) : null}
-
-              <View style={styles.secureNotice} lightColor="#eaf7ef" darkColor="#0f2d1d">
-                <Text style={styles.secureIcon}>🛡</Text>
-                <View style={styles.secureTextWrap} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.secureTitle}>Secure Verification</Text>
-                  <Text style={styles.secureBody}>
-                    This code expires in 10 minutes. Never share it with anyone.
-                  </Text>
-                </View>
-              </View>
-
-              <Pressable
-                disabled={!canVerifyCode}
-                onPress={handleVerify}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  {
-                    backgroundColor: canVerifyCode ? palette.primary : palette.primarySoft,
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}>
-                <Text style={styles.primaryButtonText}>Verify Account  →</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           {step === 'password' ? (
-            <View style={styles.formBlock} lightColor="transparent" darkColor="transparent">
-              <View style={styles.fieldBlock} lightColor="transparent" darkColor="transparent">
-                <Text style={[styles.label, { color: textColor }]}>Password</Text>
+            <View style={styles.formBlock}>
+              <View style={styles.fieldBlock}>
+                <Text style={[styles.label, { color: palette.text }]}>Password</Text>
                 <View
                   style={[
                     styles.passwordWrap,
                     {
-                      borderColor,
-                      backgroundColor: inputBackground,
+                      borderColor: palette.border,
+                      backgroundColor: palette.field,
                     },
-                  ]}
-                  lightColor="transparent"
-                  darkColor="transparent">
+                  ]}>
                   <TextInput
                     value={password}
                     onChangeText={setPassword}
                     autoCapitalize="none"
                     secureTextEntry={!showPassword}
                     placeholder="********"
-                    placeholderTextColor={placeholderColor}
-                    style={[styles.passwordInput, { color: textColor }]}
+                    placeholderTextColor={palette.placeholder}
+                    style={[styles.passwordInput, { color: palette.text }]}
                   />
                   <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={8} style={styles.eyeButton}>
                     <SymbolView
@@ -534,58 +320,43 @@ export default function RegisterScreen() {
                 </View>
               </View>
 
-              <View
-                style={[
-                  styles.rulesCard,
-                  {
-                    backgroundColor: inputBackground,
-                    borderColor,
-                  },
-                ]}
-                lightColor="transparent"
-                darkColor="transparent">
+              <View style={[styles.rulesCard, { backgroundColor: palette.field, borderColor: palette.border }]}>
                 {passwordChecks.map((item) => (
-                  <View key={item.label} style={styles.ruleRow} lightColor="transparent" darkColor="transparent">
+                  <View key={item.label} style={styles.ruleRow}>
                     <View
                       style={[
                         styles.ruleIconWrap,
-                        {
-                          backgroundColor: item.passed ? '#d1fae5' : '#fef3c7',
-                        },
-                      ]}
-                      lightColor="transparent"
-                      darkColor="transparent">
-                      <Text style={[styles.ruleIcon, { color: item.passed ? '#16a34a' : '#d97706' }]}>
+                        { backgroundColor: item.passed ? palette.successSoft : palette.warningSoft },
+                      ]}>
+                      <Text style={[styles.ruleIcon, { color: item.passed ? palette.success : palette.warning }]}>
                         {item.passed ? '✓' : '!'}
                       </Text>
                     </View>
-                    <Text style={[styles.ruleText, { color: item.passed ? '#15803d' : subtleTextColor }]}>
+                    <Text style={[styles.ruleText, { color: item.passed ? palette.success : palette.muted }]}>
                       {item.label}
                     </Text>
                   </View>
                 ))}
               </View>
 
-              <View style={styles.fieldBlock} lightColor="transparent" darkColor="transparent">
-                <Text style={[styles.label, { color: textColor }]}>Confirm Password</Text>
+              <View style={styles.fieldBlock}>
+                <Text style={[styles.label, { color: palette.text }]}>Confirm Password</Text>
                 <View
                   style={[
                     styles.passwordWrap,
                     {
-                      borderColor: confirmPassword.length > 0 && !passwordsMatch ? '#ef4444' : borderColor,
-                      backgroundColor: inputBackground,
+                      borderColor: confirmPassword.length > 0 && !passwordsMatch ? palette.danger : palette.border,
+                      backgroundColor: palette.field,
                     },
-                  ]}
-                  lightColor="transparent"
-                  darkColor="transparent">
+                  ]}>
                   <TextInput
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     autoCapitalize="none"
                     secureTextEntry={!showConfirmPassword}
                     placeholder="********"
-                    placeholderTextColor={placeholderColor}
-                    style={[styles.passwordInput, { color: textColor }]}
+                    placeholderTextColor={palette.placeholder}
+                    style={[styles.passwordInput, { color: palette.text }]}
                   />
                   <Pressable
                     onPress={() => setShowConfirmPassword((value) => !value)}
@@ -601,10 +372,10 @@ export default function RegisterScreen() {
               </View>
 
               {confirmPassword.length > 0 && !passwordsMatch ? (
-                <Text style={styles.verificationError}>Passwords do not match.</Text>
+                <Text style={[styles.verificationError, { color: palette.danger }]}>Passwords do not match.</Text>
               ) : null}
 
-              {error ? <Text style={styles.verificationError}>{error}</Text> : null}
+              {error ? <Text style={[styles.verificationError, { color: palette.danger }]}>{error}</Text> : null}
 
               <Pressable
                 disabled={!canCreateAccount}
@@ -613,10 +384,11 @@ export default function RegisterScreen() {
                   styles.primaryButton,
                   {
                     backgroundColor: canCreateAccount ? palette.primary : palette.primarySoft,
+                    shadowColor: palette.primary,
                     opacity: pressed ? 0.92 : 1,
                   },
                 ]}>
-                <Text style={styles.primaryButtonText}>
+                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
                   {status === 'loading' ? 'Creating Account...' : 'Create Account  →'}
                 </Text>
               </Pressable>
@@ -682,15 +454,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
   },
-  verifySubtitleWrap: {
-    gap: 6,
-    alignItems: 'center',
-  },
-  maskedEmail: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
   card: {
     marginTop: 28,
     padding: 4,
@@ -740,14 +503,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
-    shadowColor: '#85a3f3',
     shadowOpacity: 0.35,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 4,
   },
   primaryButtonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -759,7 +520,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   linkText: {
-    color: '#2563eb',
     fontWeight: '700',
   },
   inlineFooter: {
@@ -771,136 +531,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 15,
-  },
-  verifyBlock: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    gap: 20,
-  },
-  verificationGraphic: {
-    width: 200,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginTop: 10,
-  },
-  orbitOuter: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(96, 165, 250, 0.35)',
-  },
-  orbitInner: {
-    position: 'absolute',
-    width: 134,
-    height: 134,
-    borderRadius: 67,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(96, 165, 250, 0.22)',
-  },
-  shieldWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 28,
-    backgroundColor: '#2f6bff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2f6bff',
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 5,
-  },
-  shieldIcon: {
-    fontSize: 38,
-  },
-  codeRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 4,
-  },
-  codeBox: {
-    flex: 1,
-    minHeight: 70,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codeDigit: {
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    width: 1,
-    height: 1,
-  },
-  resendText: {
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  timerText: {
-    color: '#2563eb',
-    fontWeight: '800',
-  },
-  didntReceiveWrap: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  resendButton: {
-    minHeight: 46,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resendButtonText: {
-    color: '#2563eb',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  verificationError: {
-    color: '#ef4444',
-    textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  secureNotice: {
-    width: '100%',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  secureIcon: {
-    fontSize: 24,
-    marginTop: 1,
-  },
-  secureTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  secureTitle: {
-    color: '#16a34a',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  secureBody: {
-    color: '#16a34a',
-    fontSize: 14,
-    lineHeight: 22,
   },
   passwordWrap: {
     minHeight: 72,
@@ -917,11 +547,6 @@ const styles = StyleSheet.create({
   eyeButton: {
     minWidth: 52,
     alignItems: 'flex-end',
-  },
-  eyeText: {
-    color: '#9ca3af',
-    fontSize: 13,
-    fontWeight: '700',
   },
   rulesCard: {
     borderRadius: 18,
@@ -948,6 +573,11 @@ const styles = StyleSheet.create({
   },
   ruleText: {
     flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  verificationError: {
+    textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
   },

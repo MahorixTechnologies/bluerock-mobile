@@ -31,17 +31,17 @@ export type AppPalette = HomePalette & {
 };
 
 const light: AppPalette = {
-  bg: '#F8FAFF',
+  bg: '#eef2f5',
   card: '#ffffff',
   text: '#141414',
   muted: '#7e7e86',
   search: '#ffffff',
-  soft: 'rgba(37,99,235,0.06)',
+  soft: 'rgba(30,91,255,0.06)',
   iconBubble: '#ffffff',
   border: 'rgba(30,27,75,0.08)',
-  primary: '#2563eb',
+  primary: '#1E5BFF',
   onPrimary: '#ffffff',
-  primarySoft: 'rgba(37,99,235,0.12)',
+  primarySoft: 'rgba(30,91,255,0.10)',
   field: '#ffffff',
   placeholder: 'rgba(100,116,139,0.72)',
   danger: '#ef4444',
@@ -50,7 +50,7 @@ const light: AppPalette = {
   successSoft: 'rgba(22,163,74,0.12)',
   warning: '#d97706',
   warningSoft: 'rgba(217,119,6,0.14)',
-  shadow: '#1e1b4b',
+  shadow: '#0A2A8C',
 };
 
 const dark: AppPalette = {

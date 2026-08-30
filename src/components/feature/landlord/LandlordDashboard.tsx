@@ -1,6 +1,5 @@
-import { Href, Link, useRouter } from 'expo-router';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SymbolView } from 'expo-symbols';
+import { Href, useRouter } from 'expo-router';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useListings } from '@/hooks/useListings';
@@ -8,6 +7,7 @@ import { mockListings } from '@/lib/mock-data';
 import { useAuth } from '@/providers/AuthProvider';
 
 import { HomeFeaturedCarousel } from '../home/HomeFeaturedCarousel';
+import { SectionHeader } from '../home/SectionHeader';
 import { LandlordDashboardHeader } from './LandlordDashboardHeader';
 import { LandlordPropertiesSection } from './LandlordPropertiesSection';
 import { LandlordQuickAccess } from './LandlordQuickAccess';
@@ -99,44 +99,16 @@ export function LandlordDashboard() {
         />
 
         <View style={landlordStyles.featuredSection}>
-          <View style={landlordStyles.sectionHeader}>
-            <View style={landlordStyles.headerLeft}>
-              <View style={[landlordStyles.eyebrowRow, { backgroundColor: palette.primarySoft }]}>
-                <SymbolView
-                  name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' } as any}
-                  size={10}
-                  tintColor={palette.primary}
-                  weight="bold"
-                />
-                <Text style={[landlordStyles.eyebrowText, { color: palette.primary }]}>
-                  TRENDING HOMES
-                </Text>
-              </View>
-              <Text style={[landlordStyles.sectionTitle, { color: palette.text }]}>
-                Featured Homes
-              </Text>
-              <Text style={[landlordStyles.sectionSubtitle, { color: palette.muted }]}>
-                Browse stays your guests are loving right now — use them as inspiration.
-              </Text>
-            </View>
-            <Link href="/(tabs)/search" asChild>
-              <Pressable
-                style={({ pressed }: { pressed: boolean }) => [
-                  landlordStyles.sectionLinkRow,
-                  { backgroundColor: palette.soft, opacity: pressed ? 0.85 : 1 },
-                ]}>
-                <Text style={[landlordStyles.sectionLink, { color: palette.muted }]}>
-                  Explore
-                </Text>
-                <SymbolView
-                  name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' } as any}
-                  size={13}
-                  tintColor={palette.muted}
-                  weight="semibold"
-                />
-              </Pressable>
-            </Link>
-          </View>
+          <SectionHeader
+            title="Featured Homes"
+            href={'/(tabs)/search' as Href}
+            textColor={palette.text}
+            mutedColor={palette.muted}
+            palette={palette}
+            eyebrow="TRENDING HOMES"
+            subtitle="Browse stays your guests are loving right now — use them as inspiration."
+            linkLabel="Explore"
+          />
 
           {featuredListings.length ? (
             <HomeFeaturedCarousel listings={featuredListings} palette={palette} />
@@ -169,30 +141,6 @@ const styles = StyleSheet.create({
 
 const landlordStyles = StyleSheet.create({
   featuredSection: { gap: 14, marginTop: 4 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerLeft: { gap: 5, flex: 1, paddingRight: 12 },
-  eyebrowRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  eyebrowText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  sectionTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.3, lineHeight: 26 },
-  sectionSubtitle: { fontSize: 13, lineHeight: 18 },
-  sectionLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    marginTop: 4,
-  },
-  sectionLink: { fontSize: 13, fontWeight: '700' },
   emptyState: { borderRadius: 24, padding: 22, borderWidth: 1 },
   emptyTitle: { fontSize: 15, fontWeight: '800' },
 });

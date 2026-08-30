@@ -8,18 +8,13 @@ import { BookingDetailCard } from '@/components/bookings/BookingDetailCard';
 import { BookingPaymentSummary } from '@/components/bookings/BookingPaymentSummary';
 import { BookingCombinedBadge } from '@/components/bookings/BookingStatusBadge';
 import { BookingTimeline } from '@/components/bookings/BookingTimeline';
-import { PaymentSheet } from '@/components/payments/PaymentSheet';
+import { PaymentSheet, type PaymentProvider } from '@/components/payments/PaymentSheet';
 import { ReceiptSheet } from '@/components/payments/ReceiptSheet';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useBooking, type EnrichedBooking } from '@/hooks/useBooking';
 import { formatMoney } from '@/lib/format';
 import type { Receipt as ReceiptType } from '@/lib/models';
-import {
-  confirmPayment,
-  createPaymentIntent,
-  getReceiptForBooking,
-  isRefundEligible,
-} from '@/lib/payments';
+import { getReceiptForBooking, isRefundEligible, recordReceiptForPaidBooking } from '@/lib/payments';
 import { useAuth } from '@/providers/AuthProvider';
 import { useBookings } from '@/providers/BookingProvider';
 import { prettyDate } from '@/components/bookings/utils';
@@ -91,7 +86,7 @@ export default function BookingDetailScreen() {
   const { profile } = useAuth();
   const role = profile?.role ?? 'RENTER';
   const profileId = 'id' in (profile as any) ? (profile as any).id : undefined;
-  const { payBooking, refundBooking, decideBooking, decideBusy } = useBookings();
+  const { payBooking, refundBooking, decideBooking, decideBusy, ownerBookings } = useBookings();
 
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptType | null>(null);
@@ -100,24 +95,21 @@ export default function BookingDetailScreen() {
 
   const openReceipt = () => {
     if (!booking) return;
-    let receipt = getReceiptForBooking(booking.id);
-    if (!receipt) {
-      const intent = createPaymentIntent(booking);
-      const out = confirmPayment(intent.id, 'Card');
-      receipt = out.receipt;
-    }
+    const receipt = getReceiptForBooking(booking.id) ?? recordReceiptForPaidBooking(booking);
     setActiveReceipt(receipt);
     setReceiptOpen(true);
   };
 
-  const onConfirmPay = async () => {
+  const onConfirmPay = async (provider: PaymentProvider) => {
     if (!booking || payBusy) return;
     try {
       setPayBusy(true);
-      await payBooking(booking.id);
+      await payBooking(booking.id, provider);
+      setPaymentSheetVisible(false);
+    } catch (err) {
+      Alert.alert('Payment failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setPayBusy(false);
-      setPaymentSheetVisible(false);
     }
   };
 
@@ -139,14 +131,10 @@ export default function BookingDetailScreen() {
     );
   };
 
-  const canAccess = (() => {
-    if (!booking) return true;
-    if (role === 'LANDLORD') {
-      const { ownerBookings } = useBookings();
-      return ownerBookings.some((ob) => ob.id === bookingId);
-    }
-    return true;
-  })();
+  const canAccess =
+    !booking || role !== 'LANDLORD'
+      ? true
+      : ownerBookings.some((ob) => ob.id === bookingId);
 
   const refundEligible = booking ? isRefundEligible(booking) : false;
   const decideIsBusy = bookingId ? Boolean(decideBusy[bookingId]) : false;

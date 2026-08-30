@@ -1,9 +1,10 @@
 import { SymbolView } from 'expo-symbols';
 import { Link } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppPalette } from '@/constants/theme';
 import { formatPricePerNight } from '@/lib/format';
+import type { PaymentProvider } from '@/lib/payment-flow';
 import type { Listing, PropertyType } from '@/lib/models';
 import { resolveListingStatus } from '@/components/ui/ListingStatusTag';
 
@@ -19,6 +20,7 @@ type Props = {
   onEdit: (listing: Listing) => void;
   onDelete: (listing: Listing) => void;
   onTogglePause: (listing: Listing) => void;
+  onBoost: (listing: Listing, provider: PaymentProvider) => void;
   palette: AppPalette;
 };
 
@@ -71,6 +73,7 @@ export function LandlordListingCard({
   onEdit,
   onDelete,
   onTogglePause,
+  onBoost,
   palette,
 }: Props) {
   const statusTone = hostStatusTone(listing.status);
@@ -78,6 +81,8 @@ export function LandlordListingCard({
   const occupancy = resolveListingStatus(listing);
   const oc = occupancyColors(palette, occupancy);
   const detailHref = `/listing/${listing.id}` as any;
+  const featuredUntil = listing.featuredUntil ? new Date(listing.featuredUntil) : null;
+  const isFeatured = Boolean(listing.featured && featuredUntil && featuredUntil > new Date());
 
   return (
     <View
@@ -157,6 +162,12 @@ export function LandlordListingCard({
               </Text>
             </View>
           </View>
+
+          {isFeatured && featuredUntil ? (
+            <Text style={[styles.featuredText, { color: palette.primary }]}>
+              ★ Featured · until {featuredUntil.toLocaleDateString()}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -213,6 +224,29 @@ export function LandlordListingCard({
             ]}>
             <Text style={[styles.pillButtonText, { color: palette.primary }]}>
               Pause
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {canMutate && listing.status === 'APPROVED' ? (
+          <Pressable
+            onPress={() =>
+              Alert.alert('Feature this listing?', 'Choose how to pay — ₦5,000 for 30 days.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Paystack', onPress: () => onBoost(listing, 'PAYSTACK') },
+                { text: 'Flutterwave', onPress: () => onBoost(listing, 'FLUTTERWAVE') },
+              ])
+            }
+            style={({ pressed }) => [
+              styles.pillButton,
+              styles.pillButtonSoft,
+              {
+                borderColor: palette.primary,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}>
+            <Text style={[styles.pillButtonText, { color: palette.primary }]}>
+              {isFeatured ? 'Extend' : '★ Boost'}
             </Text>
           </Pressable>
         ) : null}
@@ -298,6 +332,11 @@ const styles = StyleSheet.create({
   },
   location: {
     fontSize: 13,
+  },
+  featuredText: {
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
   },
   meta: {
     fontSize: 12,

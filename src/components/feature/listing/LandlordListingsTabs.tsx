@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppPalette } from '@/constants/theme';
+import type { PaymentProvider } from '@/lib/payment-flow';
 import type { Listing } from '@/lib/models';
 
 import { LandlordListingCard } from './LandlordListingCard';
@@ -20,6 +21,7 @@ type Props = {
   onEdit: (listing: Listing) => void;
   onDelete: (listing: Listing) => void;
   onTogglePause: (listing: Listing) => void;
+  onBoost: (listing: Listing, provider: PaymentProvider) => void;
   palette: AppPalette;
   emptyState?: ReactNode;
 };
@@ -31,6 +33,7 @@ export function LandlordListingsTabs({
   onEdit,
   onDelete,
   onTogglePause,
+  onBoost,
   palette,
   emptyState,
 }: Props) {
@@ -146,6 +149,7 @@ export function LandlordListingsTabs({
             onEdit={onEdit}
             onDelete={onDelete}
             onTogglePause={onTogglePause}
+            onBoost={onBoost}
             palette={palette}
           />
         )}

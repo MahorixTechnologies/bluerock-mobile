@@ -129,10 +129,25 @@ export default function ModalScreen() {
                 palette={palette}
                 profileRole={profile?.role ?? 'RENTER'}
                 ownerRole={ownerRole}
-                onPay={async () => {
+                onPay={() => {
                   if (!booking) return;
-                  await payBooking(booking.id);
-                  Alert.alert('Paid', 'Booking has been marked as paid.');
+                  Alert.alert('Pay for this booking', 'Choose how to pay.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Paystack',
+                      onPress: async () => {
+                        await payBooking(booking.id, 'PAYSTACK');
+                        Alert.alert('Paid', 'Booking has been marked as paid.');
+                      },
+                    },
+                    {
+                      text: 'Flutterwave',
+                      onPress: async () => {
+                        await payBooking(booking.id, 'FLUTTERWAVE');
+                        Alert.alert('Paid', 'Booking has been marked as paid.');
+                      },
+                    },
+                  ]);
                 }}
                 onDecide={async (decision: 'APPROVE' | 'REJECT') => {
                   if (!booking) return;

@@ -11,6 +11,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import { getPalette } from "@/constants/theme";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { BookingProvider } from "@/providers/BookingProvider";
+import { FavoritesProvider } from "@/providers/FavoritesProvider";
 import { AppQueryProvider } from "@/providers/QueryProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 
@@ -55,7 +56,9 @@ export default function RootLayout() {
             <AuthProvider>
               <SettingsProvider>
                 <BookingProvider>
-                  <RootLayoutNav />
+                  <FavoritesProvider>
+                    <RootLayoutNav />
+                  </FavoritesProvider>
                 </BookingProvider>
               </SettingsProvider>
             </AuthProvider>

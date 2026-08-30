@@ -7,10 +7,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import { Input, PasswordInput } from '@/components/inputs';
-import { Text, useThemeColor, View } from '@/components/Themed';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -29,32 +30,23 @@ function getPasswordChecks(password: string) {
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { palette } = useAppTheme();
-  const { requestPasswordReset } = useAuth();
+  const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const [step, setStep] = useState<ResetStep>('request');
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [resetStatus, setResetStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
-
-  const textColor = useThemeColor({ light: '#1f2937', dark: '#f8fafc' }, 'text');
-  const mutedText = useThemeColor(
-    { light: '#6b7280', dark: 'rgba(226,232,240,0.72)' },
-    'text',
-  );
-  const borderColor = useThemeColor(
-    { light: 'rgba(15,23,42,0.08)', dark: 'rgba(255,255,255,0.12)' },
-    'text',
-  );
-  const inputBackground = useThemeColor({ light: '#f8fafc', dark: '#111827' }, 'background');
 
   const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
   const canSubmit = email.trim().length > 0 && status !== 'sending';
   const canReset =
     passwordChecks.every((item) => item.passed) &&
     confirmPassword.length > 0 &&
-    confirmPassword === password;
+    confirmPassword === password &&
+    resetStatus !== 'saving';
 
   return (
     <KeyboardAvoidingView
@@ -74,31 +66,31 @@ export default function ForgotPasswordScreen() {
           style={({ pressed }) => [
             styles.backButton,
             {
-              backgroundColor: inputBackground,
-              borderColor,
+              backgroundColor: palette.field,
+              borderColor: palette.border,
               opacity: pressed ? 0.82 : 1,
             },
           ]}>
-          <Text style={[styles.backIcon, { color: textColor }]}>‹</Text>
+          <Text style={[styles.backIcon, { color: palette.text }]}>‹</Text>
         </Pressable>
 
-        <View style={styles.iconWrap} lightColor="transparent" darkColor="transparent">
-          <View style={styles.iconHalo} lightColor="#e7f0ff" darkColor="#16325e">
-            <View style={styles.iconCore} lightColor="#2f6bff" darkColor="#2f6bff">
+        <View style={styles.iconWrap}>
+          <View style={[styles.iconHalo, { backgroundColor: palette.primarySoft, borderColor: palette.border }]}>
+            <View style={[styles.iconCore, { backgroundColor: palette.primary }]}>
               <SymbolView
                 name={{ ios: 'lock.fill', android: 'lock', web: 'lock' } as any}
                 size={36}
-                tintColor="#ffffff"
+                tintColor={palette.onPrimary}
               />
             </View>
           </View>
         </View>
 
-        <View style={styles.header} lightColor="transparent" darkColor="transparent">
+        <View style={styles.header}>
           <Text style={[styles.title, { color: palette.text }]}>
             {step === 'request' ? 'Forgot Password?' : 'Reset Password?'}
           </Text>
-          <Text style={[styles.subtitle, { color: mutedText }]}>
+          <Text style={[styles.subtitle, { color: palette.muted }]}>
             {step === 'request'
               ? 'Enter your email and we’ll send you a secure recovery link'
               : 'Create a strong new password for your account'}
@@ -107,46 +99,11 @@ export default function ForgotPasswordScreen() {
 
         {step === 'request' ? (
           <>
-            <View
-              style={[styles.segmentRow, { backgroundColor: inputBackground, borderColor }]}
-              lightColor="transparent"
-              darkColor="transparent">
-              <Pressable
-                onPress={() => setMethod('email')}
-                style={({ pressed }) => [
-                  styles.segmentButton,
-                  method === 'email' ? [styles.segmentActive, { backgroundColor: palette.primary }] : null,
-                  { opacity: pressed ? 0.92 : 1 },
-                ]}>
-                <SymbolView
-                  name={{ ios: 'envelope.fill', android: 'email', web: 'email' } as any}
-                  size={16}
-                  tintColor={method === 'email' ? '#ffffff' : mutedText}
-                />
-                <Text style={[styles.segmentLabel, { color: method === 'email' ? '#ffffff' : mutedText }]}>Email</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setMethod('phone')}
-                style={({ pressed }) => [
-                  styles.segmentButton,
-                  method === 'phone' ? [styles.segmentActive, { backgroundColor: palette.primary }] : null,
-                  { opacity: pressed ? 0.92 : 1 },
-                ]}>
-                <SymbolView
-                  name={{ ios: 'phone.fill', android: 'phone', web: 'phone' } as any}
-                  size={16}
-                  tintColor={method === 'phone' ? '#ffffff' : mutedText}
-                />
-                <Text style={[styles.segmentLabel, { color: method === 'phone' ? '#ffffff' : mutedText }]}>Phone</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.form} lightColor="transparent" darkColor="transparent">
+            <View style={styles.form}>
               <Input
                 label="Email Address"
                 value={email}
                 onChangeText={setEmail}
-                editable={method === 'email'}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
@@ -155,16 +112,16 @@ export default function ForgotPasswordScreen() {
                 leftIcon="envelope"
               />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text style={[styles.errorText, { color: palette.danger }]}>{error}</Text> : null}
 
               <Pressable
-                disabled={!canSubmit || method !== 'email'}
+                disabled={!canSubmit}
                 onPress={async () => {
-                  if (method !== 'email') return;
                   setError(null);
                   setStatus('sending');
                   try {
-                    await requestPasswordReset(email.trim());
+                    const token = await requestPasswordReset(email.trim());
+                    setResetToken(token);
                     setStatus('sent');
                     setStep('reset');
                   } catch (e: any) {
@@ -175,21 +132,22 @@ export default function ForgotPasswordScreen() {
                 style={({ pressed }) => [
                   styles.primaryButton,
                   {
-                    backgroundColor: canSubmit && method === 'email' ? '#2563eb' : '#89a8f3',
+                    backgroundColor: canSubmit ? palette.primary : palette.primarySoft,
+                    shadowColor: palette.primary,
                     opacity: pressed ? 0.92 : 1,
                   },
                 ]}>
-                <Text style={styles.primaryButtonText}>
+                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
                   {status === 'sending' ? 'Sending Recovery Link...' : 'Send Recovery Link  →'}
                 </Text>
               </Pressable>
             </View>
 
-            <View style={styles.footerRow} lightColor="transparent" darkColor="transparent">
-              <Text style={[styles.footerText, { color: mutedText }]}>Remember your password?</Text>
+            <View style={styles.footerRow}>
+              <Text style={[styles.footerText, { color: palette.muted }]}>Remember your password?</Text>
               <Link href="/(auth)/login" asChild>
                 <Pressable>
-                  <Text style={styles.linkText}>Back to Sign In</Text>
+                  <Text style={[styles.linkText, { color: palette.primary }]}>Back to Sign In</Text>
                 </Pressable>
               </Link>
             </View>
@@ -197,7 +155,16 @@ export default function ForgotPasswordScreen() {
         ) : null}
 
         {step === 'reset' ? (
-          <View style={styles.form} lightColor="transparent" darkColor="transparent">
+          <View style={styles.form}>
+            {!resetToken ? (
+              <View style={[styles.inlineBanner, { backgroundColor: palette.warningSoft }]}>
+                <Text style={[styles.inlineBannerText, { color: palette.warning }]}>
+                  If an account exists for that email, a reset link has been sent. Configure
+                  EXPO_PUBLIC_API_URL to complete the reset in this app.
+                </Text>
+              </View>
+            ) : null}
+
             <PasswordInput
               label="Password"
               value={password}
@@ -206,24 +173,19 @@ export default function ForgotPasswordScreen() {
               leftIcon="lock"
             />
 
-            <View
-              style={[styles.rulesCard, { borderColor, backgroundColor: inputBackground }]}
-              lightColor="transparent"
-              darkColor="transparent">
+            <View style={[styles.rulesCard, { borderColor: palette.border, backgroundColor: palette.field }]}>
               {passwordChecks.map((item) => (
-                <View key={item.label} style={styles.ruleRow} lightColor="transparent" darkColor="transparent">
+                <View key={item.label} style={styles.ruleRow}>
                   <View
                     style={[
                       styles.ruleIconWrap,
-                      { backgroundColor: item.passed ? '#d1fae5' : '#f8fafc' },
-                    ]}
-                    lightColor="transparent"
-                    darkColor="transparent">
-                    <Text style={[styles.ruleIcon, { color: item.passed ? '#16a34a' : '#d1d5db' }]}>
+                      { backgroundColor: item.passed ? palette.successSoft : palette.field },
+                    ]}>
+                    <Text style={[styles.ruleIcon, { color: item.passed ? palette.success : palette.placeholder }]}>
                       {item.passed ? '✓' : '✓'}
                     </Text>
                   </View>
-                  <Text style={[styles.ruleText, { color: item.passed ? '#15803d' : mutedText }]}>
+                  <Text style={[styles.ruleText, { color: item.passed ? palette.success : palette.muted }]}>
                     {item.label}
                   </Text>
                 </View>
@@ -243,20 +205,36 @@ export default function ForgotPasswordScreen() {
               }
             />
 
+            {resetStatus === 'error' && error ? (
+              <Text style={[styles.errorText, { color: palette.danger }]}>{error}</Text>
+            ) : null}
+
             <Pressable
-              disabled={!canReset}
-              onPress={() => {
+              disabled={!canReset || !resetToken}
+              onPress={async () => {
+                if (!resetToken) return;
                 setError(null);
-                router.replace('/(auth)/login');
+                setResetStatus('saving');
+                try {
+                  await confirmPasswordReset({ token: resetToken, newPassword: password });
+                  setResetStatus('done');
+                  router.replace('/(auth)/login');
+                } catch (e: any) {
+                  setResetStatus('error');
+                  setError(e?.message ?? 'Failed to reset password');
+                }
               }}
               style={({ pressed }) => [
                 styles.primaryButton,
                 {
-                  backgroundColor: canReset ? '#89a8f3' : '#c8d4fb',
+                  backgroundColor: canReset && resetToken ? palette.primary : palette.primarySoft,
+                  shadowColor: palette.primary,
                   opacity: pressed ? 0.92 : 1,
                 },
               ]}>
-              <Text style={styles.primaryButtonText}>Reset Password  →</Text>
+              <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
+                {resetStatus === 'saving' ? 'Resetting…' : 'Reset Password  →'}
+              </Text>
             </Pressable>
           </View>
         ) : null}
@@ -268,7 +246,6 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f3f6fb',
   },
   content: {
     minHeight: '100%',
@@ -301,7 +278,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#dbeafe',
   },
   iconCore: {
     width: 96,
@@ -309,9 +285,6 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: 38,
   },
   header: {
     marginTop: 26,
@@ -322,7 +295,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     fontWeight: '800',
-    color: '#0b2466',
     textAlign: 'center',
   },
   subtitle: {
@@ -331,36 +303,8 @@ const styles = StyleSheet.create({
     maxWidth: 270,
     textAlign: 'center',
   },
-  segmentRow: {
-    marginTop: 34,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 6,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  segmentButton: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 12,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentActive: {
-    backgroundColor: '#2563eb',
-  },
-  segmentLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6b7280',
-  },
-  segmentLabelActive: {
-    color: '#ffffff',
-  },
   form: {
-    marginTop: 20,
+    marginTop: 34,
     gap: 18,
   },
   primaryButton: {
@@ -369,14 +313,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2f6bff',
     shadowOpacity: 0.2,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
   primaryButtonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -391,12 +333,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   linkText: {
-    color: '#2563eb',
     fontSize: 14,
     fontWeight: '700',
   },
   errorText: {
-    color: '#ef4444',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -427,5 +367,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     lineHeight: 22,
+  },
+  inlineBanner: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  inlineBannerText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
   },
 });

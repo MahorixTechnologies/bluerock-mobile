@@ -33,7 +33,7 @@ bluerock-mobile/
 │   └── _layout.tsx           # root layout (providers + safe area)
 ├── components/
 │   ├── bookings/             # booking card, empty state, hero, highlight card
-│   ├── home/                 # HomeHeader, strip, chips, sections, featured carousel
+│   ├── home/                 # HomeFilterChips (curated categories), LandlordDashboard
 │   ├── inputs/               # reusable Input, PasswordInput, SearchInput, Textarea
 │   ├── Button.tsx            # shared primary button
 │   ├── ListingCard.tsx       # `featured` | `list` variants
@@ -68,23 +68,23 @@ bluerock-mobile/
 - **Use `expo-router` and its conventions.** Do not add a custom navigation container.
 - **Tabs live in `app/(tabs)/_layout.tsx`**. The visible tab set is role-dependent:
 
-  **RENTER / signed out (5 tabs):**
-  1. `index` → **Home**
-  2. `search` → **Search**
-  3. `bookings` → **Bookings**
-  4. `payouts` → **Payouts**
-  5. `profile` → **Account**
+  **RENTER / signed out (4 tabs):**
+  1. `index` → **Home** (title "Home"; search moved into a top-right icon button on this screen, linking to `/(tabs)/search`)
+  2. `bookings` → **Bookings**
+  3. `saved` → **Saved** (favorited listings, backed by `useFavorites()` / `FavoritesProvider`)
+  4. `profile` → **Account**
 
   **LANDLORD (5 tabs):**
-  1. `index` → **Home** (renders `LandlordDashboard`)
+  1. `index` → **Dashboard** (title "Dashboard", renders `LandlordDashboard`)
   2. `host-listings` → **My Listings** (`tabBarLabel: "My Listings"`, Symbol `building.2.fill` / `apartment`)
-  3. `host-bookings` → **Guest Bookings** (`tabBarLabel: "Guest Bookings"`, Symbol `person.2.fill` / `group`)
-  4. `payouts` → **Payouts**
+  3. `host-bookings` → **Bookings** (`tabBarLabel: "Bookings"`, Symbol `person.2.fill` / `group`)
+  4. `payouts` → **Payout**
   5. `profile` → **Account**
 
-- `Search` and `bookings` tabs are hidden (`tabBarItemStyle.display = "none"`) when role is LANDLORD because those screens contain explicit `<Redirect>` routing to `/host-listings` / `/host-bookings` respectively.
-- Vice-versa: `host-listings` and `host-bookings` tabs are hidden from RENTER/signed-out users via the same `display: "none"` gate while still being registered for deep-link navigation.
-- Floating `FloatingTabBar` already respects `display: "none"` via `isHidden()` filter on `tabBarItemStyle`, so the 5-visible-tab count holds for both roles.
+- `bookings` and `saved` tabs are hidden (`tabBarItemStyle.display = "none"`) when role is LANDLORD; `bookings` also contains an explicit `<Redirect>` to `/host-bookings` as a belt-and-suspenders guard for direct navigation.
+- Vice-versa: `host-listings`, `host-bookings`, and `payouts` tabs are hidden from RENTER/signed-out users via the same `display: "none"` gate while still being registered for deep-link navigation. Do **not** add `href: null` to a tab that needs to be a real visible tab for either role — on web it drops the route out of `state.routes` entirely (not just the tab-bar button), which silently removes the tab for every role, not just the one it's meant to be hidden from.
+- `search` is registered as a `Tabs.Screen` but always hidden from the tab bar (`display: "none"` for both roles) — it's reachable via the search icon on Home (renter) or via `Link`/`router.push('/(tabs)/search')` elsewhere (e.g. `LandlordDashboard`'s "Explore" link), not as a bottom-tab destination.
+- Floating `FloatingTabBar` already respects `display: "none"` via `isHidden()` filter on `tabBarItemStyle`, so the per-role visible-tab count above holds.
 - Dynamic segments live in the `app/` root (e.g. `app/listing/[id].tsx`), not inside `(tabs)`.
 - Href typing: cast string templates with `as Href` from `expo-router`.
 
@@ -179,8 +179,8 @@ Always use `apiFetch(path, options?)` from `lib/api-client.ts`. It handles:
 
 | Role | Route gating |
 |---|---|
-| `RENTER` | default. Home, search, bookings, payouts (info only), account. |
-| `LANDLORD` | redirect `/bookings` → `/host-bookings`, payouts active, host listings. |
+| `RENTER` | default. Home (with search icon), bookings, saved, account. No payouts tab. |
+| `LANDLORD` | redirect `/bookings` → `/host-bookings`, dashboard, my listings, bookings, payout, account. |
 | `ADMIN` | web admin only. Mobile does not expose admin pages. |
 
 In `AuthProvider`, if `EXPO_PUBLIC_API_URL` is unset, login/register still succeed with a dev token so the app remains runnable offline.
@@ -198,18 +198,32 @@ renter@bluerock.com   / renter123    (RENTER)
 ## 7. Common Screen Patterns
 
 ### Home (`app/(tabs)/index.tsx`)
-Delegates to `components/home/*` for:
-- `HomeHeader` + greeting + avatar + summary
-- Search bar (pressable → navigate to search)
-- `HomeSummaryStrip` (stat tiles)
-- `HomeFilterChips`
-- Two `HomeListingSection`s with slices `[0,4]` and `[4,8]`
+LANDLORD renders `LandlordDashboard` (unchanged operational dashboard, tab titled "Dashboard").
+RENTER and signed-out guests both get the same simplified discovery screen — a title row ("Home"
++ a top-right search icon button linking to `/(tabs)/search`, since search is no longer a tab),
+then:
+- `HomeFilterChips` as a curated-category picker (`All listings` / `Featured` / `New this week`,
+  not raw property types) — `Featured` filters on `listing.featured`, `New this week` filters on
+  `listing.createdAt` within the last 7 days.
+- A single `ListingCard` (`variant="list"`) feed of whatever the selected category resolves to.
+
+**Important:** both hooks used for the feed (`useListings`, plus the `useMemo`s for location chips
+and the filtered feed) must be called unconditionally, above the `if (isLandlord) return
+<LandlordDashboard />` early return. This screen has twice regressed into a "Rendered fewer hooks
+than expected" crash (React error boundary) from a hook being declared after that early return —
+double-check hook order here specifically before touching this file.
 
 ### Bookings (`app/(tabs)/bookings.tsx`)
 Landlords redirect to `/host-bookings`. Signed-out users get a login CTA. Signed-in renters see:
 - hero summary stats (Upcoming / Nights / Spent)
 - latest reservation highlight card
 - `BookingListItem` cards with reliable `ItemSeparatorComponent` spacing
+
+### Saved (`app/(tabs)/saved.tsx`)
+Renter/signed-out-only tab. Backed by `useFavorites()` (`FavoritesProvider`, device-local
+storage, works regardless of auth) filtered against `useListings()`. A separate standalone
+screen, `app/saved-listings.tsx`, still exists as a push-with-back-button variant linked from
+`search.tsx` and the Account shortcuts — the two are intentionally not merged.
 
 ### Listing Detail (`app/listing/[id].tsx`)
 Use `useListing(id)` which falls back to `mock-data.ts`.

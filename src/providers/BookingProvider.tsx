@@ -8,11 +8,10 @@ import {
   type OwnerBooking,
 } from '@/lib/mock-bookings';
 import type { Booking, Listing } from '@/lib/models';
+import { payWithProvider, type PaymentProvider } from '@/lib/payment-flow';
 import {
-  confirmPayment,
-  createPaymentIntent,
-  getReceiptForBooking,
   issueRefund,
+  recordReceiptForPaidBooking,
   updateBookingPaymentStatus,
 } from '@/lib/payments';
 import { useAuth } from '@/providers/AuthProvider';
@@ -40,7 +39,7 @@ type BookingContextValue = {
     total: number;
   }) => Promise<Booking>;
   createFakeBooking: (opts?: CreateFakeBookingOptions) => Booking | null;
-  payBooking: (bookingId: string) => Promise<void>;
+  payBooking: (bookingId: string, provider: PaymentProvider) => Promise<void>;
   refundBooking: (bookingId: string, reason: string) => Promise<void>;
   decideBooking: (bookingId: string, decision: BookingDecision) => Promise<void>;
   decideBusy: Record<string, boolean>;
@@ -212,11 +211,16 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         setBookings((prev) => [booking, ...prev]);
         return booking;
       },
-      payBooking: async (bookingId: string) => {
+      payBooking: async (bookingId: string, provider: PaymentProvider) => {
         const booking = bookings.find((b) => b.id === bookingId);
         if (!booking) return;
-        const intent = createPaymentIntent(booking);
-        const { receipt } = confirmPayment(intent.id, 'Card');
+
+        let receiptReference: string | undefined;
+        if (process.env.EXPO_PUBLIC_API_URL) {
+          const result = await payWithProvider({ purpose: 'BOOKING', targetId: bookingId, provider });
+          receiptReference = result.reference;
+        }
+        const receipt = recordReceiptForPaidBooking(booking, receiptReference);
         const newOwnerStatus: Booking['status'] = 'CONFIRMED';
         setBookings((prev) =>
           prev.map((b) => {
@@ -236,12 +240,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       refundBooking: async (bookingId: string, reason: string) => {
         const booking = bookings.find((b) => b.id === bookingId);
         if (!booking) return;
-        const existingReceipt = getReceiptForBooking(bookingId);
-        if (!existingReceipt) {
-          const intent = createPaymentIntent(booking);
-          confirmPayment(intent.id, 'Card');
-        }
-        const refund = issueRefund(bookingId, reason);
+        const refund = issueRefund(booking, reason);
         setBookings((prev) =>
           prev.map((b) => {
             if (b.id !== bookingId) return b;

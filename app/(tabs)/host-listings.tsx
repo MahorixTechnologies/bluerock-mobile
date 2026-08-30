@@ -12,6 +12,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useHostListings } from '@/hooks/useHostListings';
 import { apiFetch } from '@/lib/api-client';
 import type { Listing } from '@/lib/models';
+import { payWithProvider, type PaymentProvider } from '@/lib/payment-flow';
 import { useAuth } from '@/providers/AuthProvider';
 
 function parseCsv(input: string) {
@@ -116,6 +117,19 @@ export default function HostListingsScreen() {
       await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to update listing status');
+    }
+  };
+
+  const handleBoost = async (listing: Listing, provider: PaymentProvider) => {
+    setActionError(null);
+    try {
+      if (!canMutate) {
+        throw new Error('Backend required: set EXPO_PUBLIC_API_URL to feature a listing.');
+      }
+      await payWithProvider({ purpose: 'FEATURED_LISTING', targetId: listing.id, provider });
+      await queryClient.invalidateQueries({ queryKey: ['hostListings'] });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to feature this listing');
     }
   };
 
@@ -232,6 +246,7 @@ export default function HostListingsScreen() {
           onEdit={setEditing}
           onDelete={(l) => setConfirmDeleteId(l.id)}
           onTogglePause={handleTogglePause}
+          onBoost={handleBoost}
           palette={palette}
         />
       </ScrollView>
