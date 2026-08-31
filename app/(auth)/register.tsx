@@ -114,6 +114,7 @@ export default function RegisterScreen() {
         password,
         role,
         phone: formatPhoneNumberForApi(phone),
+        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       });
       router.replace('/');
     } catch (e) {

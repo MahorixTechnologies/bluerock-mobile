@@ -16,6 +16,7 @@ type AuthContextValue = {
     password: string;
     role?: UserProfile['role'];
     phone?: string;
+    name?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<string | null>;
@@ -200,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Unknown account. Use a demo account (renter@bluerock.com / renter123) or configure EXPO_PUBLIC_API_URL.',
         );
       },
-      register: async ({ email, password, role, phone }) => {
+      register: async ({ email, password, role, phone, name }) => {
         setStatus('loading');
         if (process.env.EXPO_PUBLIC_API_URL) {
           const payload = await apiFetch('/auth/register', {
@@ -211,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               password,
               role: role ?? 'RENTER',
               phone: typeof phone === 'string' ? phone : undefined,
+              name: typeof name === 'string' ? name : undefined,
             }),
           });
           const token = (payload as any)?.accessToken ?? (payload as any)?.token;
@@ -218,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           const nextProfile: UserProfile = {
             email,
-            name: (payload as any)?.user?.name ?? '',
+            name: (payload as any)?.user?.name ?? name ?? '',
             phone: (payload as any)?.user?.phone ?? '',
             emailVerified: Boolean((payload as any)?.user?.emailVerified),
             role: ((payload as any)?.user?.role as UserProfile['role']) ?? (role ?? 'RENTER'),
@@ -233,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const devToken = `dev.${Date.now()}`;
         const nextProfile: UserProfile = {
           email,
-          name: '',
+          name: name ?? '',
           phone: phone ?? '',
           emailVerified: false,
           role: role ?? 'RENTER',
