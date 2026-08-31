@@ -90,13 +90,19 @@ const styles = StyleSheet.create({
   highlightCard: {
     borderRadius: 24,
     borderWidth: 1,
-    overflow: 'hidden',
     shadowOpacity: 0.04,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
   },
-  bannerWrap: { width: '100%', height: 172, position: 'relative' },
+  bannerWrap: {
+    width: '100%',
+    height: 172,
+    position: 'relative',
+    overflow: 'hidden',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
   banner: { width: '100%', height: '100%' },
   bannerScrim: {
     position: 'absolute',

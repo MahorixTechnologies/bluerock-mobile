@@ -231,13 +231,19 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
     borderWidth: 1,
-    overflow: 'hidden',
     shadowOpacity: 0.05,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 7 },
     elevation: 3,
   },
-  imageWrap: { width: '100%', height: 160, position: 'relative' },
+  imageWrap: {
+    width: '100%',
+    height: 160,
+    position: 'relative',
+    overflow: 'hidden',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
   image: { width: '100%', height: '100%' },
   imagePlaceholder: {
     backgroundColor: '#b9bdc7',
