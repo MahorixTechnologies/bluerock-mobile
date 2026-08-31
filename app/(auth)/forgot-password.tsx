@@ -31,6 +31,7 @@ function getPasswordChecks(password: string) {
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const [step, setStep] = useState<ResetStep>('request');
   const [email, setEmail] = useState('');
@@ -53,7 +54,10 @@ export default function ForgotPasswordScreen() {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.screen, { backgroundColor: palette.bg }]}>
-      <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
         <Pressable
           accessibilityRole="button"
           onPress={() => {
@@ -251,7 +255,6 @@ const styles = StyleSheet.create({
   content: {
     minHeight: '100%',
     paddingHorizontal: 20,
-    paddingTop: 30,
     paddingBottom: 32,
   },
   backButton: {
@@ -261,7 +264,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Platform.OS === 'ios' ? 8 : 0,
   },
   backIcon: {
     fontSize: 28,
