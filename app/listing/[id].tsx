@@ -5,7 +5,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -194,9 +193,7 @@ export default function ListingDetailsScreen() {
               Log in to book and view your booking history.
             </Text>
             <Link href="/(auth)/login" asChild>
-              <Pressable>
-                <Button>Log In</Button>
-              </Pressable>
+              <Button>Log In</Button>
             </Link>
           </View>
         ) : (

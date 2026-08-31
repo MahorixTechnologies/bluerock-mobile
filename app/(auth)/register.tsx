@@ -10,11 +10,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import TextField from '@/components/TextField';
+import { Input, PasswordInput } from '@/components/inputs';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -42,6 +42,7 @@ function getPasswordChecks(password: string) {
 export default function RegisterScreen() {
   const router = useRouter();
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { register, status } = useAuth();
   const [role, setRole] = useState<UserRole>('LANDLORD');
   const [step, setStep] = useState<RegisterStep>('details');
@@ -51,8 +52,6 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cardAnimation = useRef(new Animated.Value(1)).current;
@@ -71,7 +70,7 @@ export default function RegisterScreen() {
     cardAnimation.setValue(0);
     Animated.timing(cardAnimation, {
       toValue: 1,
-      duration: 260,
+      duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
@@ -83,7 +82,7 @@ export default function RegisterScreen() {
       {
         translateY: cardAnimation.interpolate({
           inputRange: [0, 1],
-          outputRange: [20, 0],
+          outputRange: [16, 0],
         }),
       },
     ],
@@ -122,14 +121,14 @@ export default function RegisterScreen() {
     }
   };
 
-  const title = step === 'details' ? 'Create Account' : 'Create Password';
+  const title = step === 'details' ? 'Create account' : 'Create a password';
 
   const subtitle =
     step === 'details'
       ? role === 'LANDLORD'
-        ? 'Create your homeowner account to start managing your properties.'
-        : 'Create your renter account to start booking and managing your stays.'
-      : 'Secure your account';
+        ? 'Set up your homeowner account to start managing your properties.'
+        : 'Set up your renter account to start booking and managing your stays.'
+      : 'Secure your account with a strong password.';
 
   return (
     <KeyboardAvoidingView
@@ -138,7 +137,7 @@ export default function RegisterScreen() {
       <ScrollView
         bounces={false}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
         <Pressable
           accessibilityRole="button"
           onPress={handleBack}
@@ -147,10 +146,15 @@ export default function RegisterScreen() {
             {
               backgroundColor: palette.field,
               borderColor: palette.border,
-              opacity: pressed ? 0.82 : 1,
+              opacity: pressed ? 0.8 : 1,
             },
           ]}>
-          <Text style={[styles.backIcon, { color: palette.text }]}>‹</Text>
+          <SymbolView
+            name={{ ios: 'chevron.left', android: 'arrow-back', web: 'arrow-back' } as any}
+            size={16}
+            tintColor={palette.text}
+            weight="semibold"
+          />
         </Pressable>
 
         <View style={styles.headerBlock}>
@@ -187,77 +191,54 @@ export default function RegisterScreen() {
           <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
         </View>
 
-        <Animated.View
-          style={[styles.card, animatedCardStyle, { backgroundColor: palette.card }]}>
+        <Animated.View style={[styles.card, animatedCardStyle]}>
           {step === 'details' ? (
             <View style={styles.formBlock}>
-              <TextField
-                label="First Name"
-                value={firstName}
-                onChangeText={setFirstName}
-                autoCapitalize="words"
-                placeholder="Enter your first name"
-                labelColor={palette.text}
-                textColor={palette.text}
-                borderColor={palette.border}
-                backgroundColor={palette.field}
-                placeholderTextColor={palette.placeholder}
-                inputStyle={styles.textFieldInput}
-              />
+              <View style={styles.nameRow}>
+                <Input
+                  label="First name"
+                  size="md"
+                  containerStyle={styles.nameField}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                  placeholder="First name"
+                />
+                <Input
+                  label="Last name"
+                  size="md"
+                  containerStyle={styles.nameField}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                  placeholder="Last name"
+                />
+              </View>
 
-              <TextField
-                label="Last Name"
-                value={lastName}
-                onChangeText={setLastName}
-                autoCapitalize="words"
-                placeholder="Enter your last name"
-                labelColor={palette.text}
-                textColor={palette.text}
-                borderColor={palette.border}
-                backgroundColor={palette.field}
-                placeholderTextColor={palette.placeholder}
-                inputStyle={styles.textFieldInput}
-              />
-
-              <TextField
-                label="Email Address"
+              <Input
+                label="Email address"
+                size="md"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                textContentType="emailAddress"
                 placeholder="Enter your email"
-                labelColor={palette.text}
-                textColor={palette.text}
-                borderColor={palette.border}
-                backgroundColor={palette.field}
-                placeholderTextColor={palette.placeholder}
-                inputStyle={styles.textFieldInput}
+                leftIcon="envelope"
               />
 
-              <View style={styles.fieldBlock}>
-                <Text style={[styles.label, { color: palette.text }]}>Phone Number</Text>
-                <View
-                  style={[
-                    styles.phoneRow,
-                    {
-                      borderColor: palette.border,
-                      backgroundColor: palette.field,
-                    },
-                  ]}>
-                  <View style={[styles.phonePrefix, { borderColor: palette.border }]}>
-                    <Text style={[styles.phonePrefixText, { color: palette.muted }]}>+234</Text>
-                  </View>
-                  <TextInput
-                    value={phone}
-                    onChangeText={(value) => setPhone(value.replace(/[^\d]/g, '').slice(0, 10))}
-                    keyboardType="number-pad"
-                    placeholder="812 345 6789"
-                    placeholderTextColor={palette.placeholder}
-                    style={[styles.phoneInput, { color: palette.text }]}
-                  />
-                </View>
-              </View>
+              <Input
+                label="Phone number"
+                size="md"
+                value={phone}
+                onChangeText={(value) => setPhone(value.replace(/[^\d]/g, '').slice(0, 10))}
+                keyboardType="number-pad"
+                placeholder="812 345 6789"
+                leftAdornment={
+                  <Text style={[styles.phonePrefixText, { color: palette.muted }]}>+234</Text>
+                }
+              />
 
               <Pressable
                 disabled={!canContinueDetails}
@@ -270,7 +251,13 @@ export default function RegisterScreen() {
                     opacity: pressed ? 0.92 : 1,
                   },
                 ]}>
-                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>Continue  →</Text>
+                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>Continue</Text>
+                <SymbolView
+                  name={{ ios: 'arrow.right', android: 'arrow-forward', web: 'arrow-forward' } as any}
+                  size={15}
+                  tintColor={palette.onPrimary}
+                  weight="semibold"
+                />
               </Pressable>
 
               <Text style={[styles.termsText, { color: palette.muted }]}>
@@ -282,7 +269,7 @@ export default function RegisterScreen() {
               <View style={styles.inlineFooter}>
                 <Text style={[styles.footerText, { color: palette.muted }]}>Already have an account?</Text>
                 <Link href="/(auth)/login" asChild>
-                  <Pressable>
+                  <Pressable hitSlop={8}>
                     <Text style={[styles.linkText, { color: palette.primary }]}>Sign in</Text>
                   </Pressable>
                 </Link>
@@ -292,34 +279,14 @@ export default function RegisterScreen() {
 
           {step === 'password' ? (
             <View style={styles.formBlock}>
-              <View style={styles.fieldBlock}>
-                <Text style={[styles.label, { color: palette.text }]}>Password</Text>
-                <View
-                  style={[
-                    styles.passwordWrap,
-                    {
-                      borderColor: palette.border,
-                      backgroundColor: palette.field,
-                    },
-                  ]}>
-                  <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    autoCapitalize="none"
-                    secureTextEntry={!showPassword}
-                    placeholder="********"
-                    placeholderTextColor={palette.placeholder}
-                    style={[styles.passwordInput, { color: palette.text }]}
-                  />
-                  <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={8} style={styles.eyeButton}>
-                    <SymbolView
-                      name={{ ios: showPassword ? 'eye.slash' : 'eye', android: 'visibility', web: 'visibility' } as any}
-                      size={20}
-                      tintColor={palette.muted}
-                    />
-                  </Pressable>
-                </View>
-              </View>
+              <PasswordInput
+                label="Password"
+                size="md"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                leftIcon="lock"
+              />
 
               <View style={[styles.rulesCard, { backgroundColor: palette.field, borderColor: palette.border }]}>
                 {passwordChecks.map((item) => (
@@ -340,41 +307,15 @@ export default function RegisterScreen() {
                 ))}
               </View>
 
-              <View style={styles.fieldBlock}>
-                <Text style={[styles.label, { color: palette.text }]}>Confirm Password</Text>
-                <View
-                  style={[
-                    styles.passwordWrap,
-                    {
-                      borderColor: confirmPassword.length > 0 && !passwordsMatch ? palette.danger : palette.border,
-                      backgroundColor: palette.field,
-                    },
-                  ]}>
-                  <TextInput
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    autoCapitalize="none"
-                    secureTextEntry={!showConfirmPassword}
-                    placeholder="********"
-                    placeholderTextColor={palette.placeholder}
-                    style={[styles.passwordInput, { color: palette.text }]}
-                  />
-                  <Pressable
-                    onPress={() => setShowConfirmPassword((value) => !value)}
-                    hitSlop={8}
-                    style={styles.eyeButton}>
-                    <SymbolView
-                      name={{ ios: showConfirmPassword ? 'eye.slash' : 'eye', android: 'visibility', web: 'visibility' } as any}
-                      size={20}
-                      tintColor={palette.muted}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-              {confirmPassword.length > 0 && !passwordsMatch ? (
-                <Text style={[styles.verificationError, { color: palette.danger }]}>Passwords do not match.</Text>
-              ) : null}
+              <PasswordInput
+                label="Confirm password"
+                size="md"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                leftIcon="lock"
+                error={confirmPassword.length > 0 && !passwordsMatch ? 'Passwords do not match.' : null}
+              />
 
               {error ? <Text style={[styles.verificationError, { color: palette.danger }]}>{error}</Text> : null}
 
@@ -390,7 +331,7 @@ export default function RegisterScreen() {
                   },
                 ]}>
                 <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
-                  {status === 'loading' ? 'Creating Account...' : 'Create Account  →'}
+                  {status === 'loading' ? 'Creating account…' : 'Create account'}
                 </Text>
               </Pressable>
             </View>
@@ -407,179 +348,132 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 36,
     paddingBottom: 32,
     minHeight: '100%',
   },
   backButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Platform.OS === 'ios' ? 18 : 8,
-  },
-  backIcon: {
-    fontSize: 32,
-    lineHeight: 32,
-    marginTop: -2,
   },
   headerBlock: {
-    gap: 10,
-    marginTop: 28,
+    gap: 8,
+    marginTop: 20,
   },
   roleRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 6,
   },
   roleChip: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: 16,
+    minHeight: 38,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   roleChipText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 29,
     fontWeight: '800',
   },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
   card: {
-    marginTop: 28,
-    padding: 4,
-    borderRadius: 32,
+    marginTop: 20,
   },
   formBlock: {
-    gap: 18,
-    paddingHorizontal: 4,
-    paddingBottom: 6,
+    gap: 14,
   },
-  fieldBlock: {
+  nameRow: {
+    flexDirection: 'row',
     gap: 10,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  textFieldInput: {
-    minHeight: 64,
-    borderRadius: 16,
-  },
-  phoneRow: {
-    minHeight: 72,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    overflow: 'hidden',
-  },
-  phonePrefix: {
-    width: 88,
-    borderRightWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  nameField: {
+    flex: 1,
   },
   phonePrefixText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
-  phoneInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingHorizontal: 14,
-  },
   primaryButton: {
-    minHeight: 68,
-    borderRadius: 18,
+    minHeight: 50,
+    borderRadius: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
+    gap: 8,
+    marginTop: 4,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
   primaryButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   termsText: {
-    marginTop: 8,
+    marginTop: 2,
     textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 22,
-    paddingHorizontal: 12,
+    fontSize: 12.5,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
   linkText: {
     fontWeight: '700',
   },
   inlineFooter: {
-    marginTop: 8,
+    marginTop: 2,
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
   footerText: {
-    fontSize: 15,
-  },
-  passwordWrap: {
-    minHeight: 72,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-  passwordInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  eyeButton: {
-    minWidth: 52,
-    alignItems: 'flex-end',
+    fontSize: 13,
   },
   rulesCard: {
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 9,
   },
   ruleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   ruleIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ruleIcon: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '800',
   },
   ruleText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
   },
   verificationError: {
     textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

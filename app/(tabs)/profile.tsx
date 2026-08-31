@@ -83,14 +83,10 @@ export default function ProfileScreen() {
         </Text>
 
         <Link href="/(auth)/login" asChild>
-          <Pressable style={{ marginTop: 16 }}>
-            <Button>Log In</Button>
-          </Pressable>
+          <Button style={{ marginTop: 16 }}>Log In</Button>
         </Link>
         <Link href="/(auth)/register" asChild>
-          <Pressable style={{ marginTop: 10 }}>
-            <Button variant="secondary">Create account</Button>
-          </Pressable>
+          <Button variant="secondary" style={{ marginTop: 10 }}>Create account</Button>
         </Link>
 
         <View style={[styles.card, { backgroundColor: palette.successSoft, borderColor: palette.success }]}>
@@ -338,9 +334,7 @@ export default function ProfileScreen() {
           password instead — it's the same secure process as signing in from a new device.
         </Text>
         <Link href="/(auth)/forgot-password" asChild>
-          <Pressable>
-            <Button variant="secondary">Reset password by email</Button>
-          </Pressable>
+          <Button variant="secondary">Reset password by email</Button>
         </Link>
       </View>
 

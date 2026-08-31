@@ -73,9 +73,7 @@ export default function HostBookingsScreen() {
           Log in as a landlord to review booking requests.
         </Text>
         <Link href="/(auth)/login" asChild>
-          <Pressable>
-            <Button style={{ marginTop: 14 }}>Log In</Button>
-          </Pressable>
+          <Button style={{ marginTop: 14 }}>Log In</Button>
         </Link>
       </View>
     );
