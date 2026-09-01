@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Input, PasswordInput } from '@/components/inputs';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { DEMO_ACCOUNTS, useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -149,63 +149,6 @@ export default function LoginScreen() {
               </Pressable>
             </Link>
           </View>
-
-          <View style={[styles.demoCard, { backgroundColor: palette.soft, borderColor: palette.border }]}>
-            <View style={styles.demoCardHeader}>
-              <SymbolView
-                name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' } as any}
-                size={14}
-                tintColor={palette.primary}
-              />
-              <Text style={[styles.demoEyebrow, { color: palette.primary }]}>Demo accounts</Text>
-            </View>
-            <Text style={[styles.demoSubtitle, { color: palette.muted }]}>
-              No backend needed — tap a card to sign in instantly.
-            </Text>
-            <View style={styles.demoChips}>
-              {DEMO_ACCOUNTS.map((account) => {
-                const roleLabel =
-                  account.role === 'ADMIN' ? 'Admin' : account.role === 'LANDLORD' ? 'Host' : 'Guest';
-                return (
-                  <Pressable
-                    key={account.email}
-                    onPress={() => {
-                      setEmail(account.email);
-                      setPassword(account.password);
-                      setError(null);
-                    }}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      styles.demoChip,
-                      {
-                        backgroundColor: palette.card,
-                        borderColor: palette.border,
-                        opacity: pressed ? 0.85 : 1,
-                      },
-                    ]}>
-                    <View style={[styles.demoChipAvatar, { backgroundColor: palette.primarySoft }]}>
-                      <Text style={[styles.demoChipAvatarText, { color: palette.primary }]}>
-                        {roleLabel.charAt(0)}
-                      </Text>
-                    </View>
-                    <View style={styles.demoChipBody}>
-                      <Text style={[styles.demoChipName, { color: palette.text }]} numberOfLines={1}>
-                        {roleLabel}
-                      </Text>
-                      <Text style={[styles.demoChipEmail, { color: palette.muted }]} numberOfLines={1}>
-                        {account.email}
-                      </Text>
-                    </View>
-                    <SymbolView
-                      name={{ ios: 'arrow.right', android: 'arrow-forward', web: 'arrow-forward' } as any}
-                      size={13}
-                      tintColor={palette.muted}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -264,35 +207,4 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   footerText: { fontSize: 13 },
-  demoCard: {
-    marginTop: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 12,
-    gap: 8,
-  },
-  demoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  demoEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  demoSubtitle: { fontSize: 12, lineHeight: 16 },
-  demoChips: { gap: 8 },
-  demoChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  demoChipAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoChipAvatarText: { fontSize: 13, fontWeight: '900' },
-  demoChipBody: { flex: 1, gap: 1 },
-  demoChipName: { fontSize: 13, fontWeight: '700' },
-  demoChipEmail: { fontSize: 11.5, fontWeight: '500' },
 });

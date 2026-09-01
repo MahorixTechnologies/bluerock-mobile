@@ -1,5 +1,4 @@
 import { Href, Link, Redirect } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +9,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import type { AppPalette } from '@/constants/theme';
 import { apiFetch } from '@/lib/api-client';
 import { formatMoney } from '@/lib/format';
-import { makeMockOwnerBookings, type OwnerBooking } from '@/lib/mock-bookings';
+import type { OwnerBooking } from '@/lib/models';
 import { useAuth } from '@/providers/AuthProvider';
 import { useBookings } from '@/providers/BookingProvider';
 
@@ -44,19 +43,15 @@ export default function HostBookingsScreen() {
   const queryClient = useQueryClient();
   const { palette } = useAppTheme();
   const { status, profile } = useAuth();
-  const { decideBooking, decideBusy, createFakeBooking, ownerBookings: providerOwnerBookings } = useBookings();
+  const { decideBooking, decideBusy, ownerBookings: providerOwnerBookings } = useBookings();
   const [filter, setFilter] = useState<FilterKey>('ALL');
+  const [decideError, setDecideError] = useState<string | null>(null);
 
   const { data: bookings = [], isLoading, error } = useQuery({
     queryKey: ['hostBookings'],
     queryFn: async (): Promise<OwnerBooking[]> => {
-      if (!process.env.EXPO_PUBLIC_API_URL) return makeMockOwnerBookings();
-      try {
-        const raw = await apiFetch('/bookings/owner');
-        return Array.isArray(raw) ? (raw as OwnerBooking[]) : [];
-      } catch {
-        return makeMockOwnerBookings();
-      }
+      const raw = await apiFetch('/bookings/owner');
+      return Array.isArray(raw) ? (raw as OwnerBooking[]) : [];
     },
     enabled: status === 'signedIn' && profile?.role !== 'RENTER',
   });
@@ -115,6 +110,7 @@ export default function HostBookingsScreen() {
   }, [mergedBookings, todayUtc, filter]);
 
   async function decide(id: string, decision: 'APPROVE' | 'REJECT') {
+    setDecideError(null);
     try {
       await decideBooking(id, decision);
       queryClient.setQueryData<OwnerBooking[]>(['hostBookings'], (prev) =>
@@ -122,12 +118,9 @@ export default function HostBookingsScreen() {
           b.id === id ? { ...b, status: decision === 'APPROVE' ? 'CONFIRMED' : 'REJECTED' } : b,
         ),
       );
-    } catch {}
-  }
-
-  function handleCreateDemoBooking() {
-    createFakeBooking();
-    queryClient.invalidateQueries({ queryKey: ['hostBookings'] });
+    } catch (err) {
+      setDecideError(err instanceof Error ? err.message : 'Could not update this booking.');
+    }
   }
 
   return (
@@ -138,6 +131,7 @@ export default function HostBookingsScreen() {
       </Text>
 
       {error ? <Text style={{ color: palette.danger, marginTop: 8 }}>{String(error)}</Text> : null}
+      {decideError ? <Text style={{ color: palette.danger, marginTop: 8 }}>{decideError}</Text> : null}
 
       <FlatList
         contentContainerStyle={{ paddingVertical: 14, paddingBottom: 120 }}
@@ -168,41 +162,6 @@ export default function HostBookingsScreen() {
                 Confirmed and completed bookings where the renter has paid.
               </Text>
             </View>
-
-            <Pressable
-              onPress={handleCreateDemoBooking}
-              style={({ pressed }) => [
-                styles.demoButton,
-                {
-                  backgroundColor: palette.primarySoft,
-                  borderColor: palette.primary,
-                  opacity: pressed ? 0.9 : 1,
-                  marginTop: 14,
-                },
-              ]}>
-              <View style={styles.demoButtonIcon}>
-                <SymbolView
-                  name={{ ios: 'plus', android: 'add', web: 'add' } as any}
-                  size={16}
-                  tintColor={palette.primary}
-                  weight="bold"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.demoButtonTitle, { color: palette.primary }]}>
-                  Create Demo Booking
-                </Text>
-                <Text style={[styles.demoButtonSubtitle, { color: palette.primary }]}>
-                  Generate a new random reservation to test the approval flow
-                </Text>
-              </View>
-              <SymbolView
-                name={{ ios: 'sparkles', android: 'auto-awesome', web: 'auto-awesome' } as any}
-                size={18}
-                tintColor={palette.primary}
-                weight="semibold"
-              />
-            </Pressable>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 14 }}>
               {FILTERS.map((f) => {
@@ -449,23 +408,4 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   rowActionDangerText: { fontWeight: '800', fontSize: 15 },
-  demoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  demoButtonIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoButtonTitle: { fontSize: 14, fontWeight: '900', letterSpacing: -0.1 },
-  demoButtonSubtitle: { fontSize: 12, fontWeight: '600', opacity: 0.78, marginTop: 1 },
 });

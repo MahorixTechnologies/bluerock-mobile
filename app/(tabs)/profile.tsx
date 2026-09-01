@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { Href, Link, useRouter } from 'expo-router';
+import { Href, Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/inputs';
 import { symbol } from '@/components/inputs/symbols';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { DEMO_ACCOUNTS, useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/AuthProvider';
 
 function initialsFor(nameOrEmail: string): string {
   const clean = nameOrEmail.trim() || 'U';
@@ -39,9 +39,8 @@ function SectionEyebrow({
 }
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const { palette } = useAppTheme();
-  const { status, profile, login, logout, markEmailVerified, updateProfile, applyForLandlord } = useAuth();
+  const { status, profile, logout, markEmailVerified, updateProfile, applyForLandlord } = useAuth();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -66,7 +65,6 @@ export default function ProfileScreen() {
   }
 
   if (status !== 'signedIn' || !profile) {
-    const demoAccounts = DEMO_ACCOUNTS.filter((a) => a.role !== 'ADMIN');
     return (
       <ScrollView
         style={{ backgroundColor: palette.bg, flex: 1 }}
@@ -88,66 +86,6 @@ export default function ProfileScreen() {
         <Link href="/(auth)/register" asChild>
           <Button variant="secondary" style={{ marginTop: 10 }}>Create account</Button>
         </Link>
-
-        <View style={[styles.card, { backgroundColor: palette.successSoft, borderColor: palette.success }]}>
-          <View style={styles.cardHeader}>
-            <SymbolView
-              name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' } as any}
-              size={18}
-              tintColor={palette.success}
-            />
-            <Text style={[styles.demoEyebrow, { color: palette.success }]}>
-              DEMO · TAP TO SIGN IN INSTANTLY
-            </Text>
-          </View>
-          <Text style={[styles.meta, { color: palette.muted }]}>
-            No backend needed. Tap any chip below to sign in as a demo user.
-          </Text>
-
-          <View style={styles.demoChipGrid}>
-            {demoAccounts.map((account) => {
-              const label = roleLabel(account.role);
-              return (
-                <Pressable
-                  key={account.email}
-                  onPress={async () => {
-                    try {
-                      await login({ email: account.email, password: account.password });
-                    } catch {
-                      router.replace('/(auth)/login');
-                    }
-                  }}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.demoChip,
-                    {
-                      borderColor: palette.primary,
-                      backgroundColor: palette.card,
-                      opacity: pressed ? 0.85 : 1,
-                      shadowColor: palette.primary,
-                    },
-                  ]}>
-                  <View style={[styles.demoAvatar, { backgroundColor: palette.primarySoft }]}>
-                    <Text style={[styles.demoAvatarText, { color: palette.primary }]}>{label.charAt(0)}</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={styles.rowBetween}>
-                      <Text style={[styles.demoName, { color: palette.text }]}>{account.name}</Text>
-                      <View style={[styles.badge, { backgroundColor: palette.primarySoft }]}>
-                        <Text style={[styles.badgeText, { color: palette.primary }]}>{label}</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.metaSmall, { color: palette.muted }]}>{account.email}</Text>
-                    <Text style={[styles.metaSmall, { color: palette.muted }]}>
-                      password ·{' '}
-                      <Text style={{ color: palette.text, fontWeight: '700' }}>{account.password}</Text>
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
       </ScrollView>
     );
   }
@@ -751,28 +689,5 @@ const styles = StyleSheet.create({
   rowLinkTitle: { fontSize: 15, fontWeight: '800' },
   rowLinkMeta: { fontSize: 12, lineHeight: 16 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  demoEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
-  demoChipGrid: { gap: 10 },
-  demoChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 10,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  demoAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoAvatarText: { fontSize: 17, fontWeight: '900' },
-  demoName: { fontSize: 14, fontWeight: '800' },
 });
 

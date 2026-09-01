@@ -9,15 +9,12 @@ import {
   type TimelineEvent,
 } from '@/components/bookings/utils';
 import { formatMoney } from '@/lib/format';
-import type { Booking } from '@/lib/models';
 import { Card, Eyebrow, Row2, cardStyles, type PaletteLike } from './presentational';
 import type { TabKey, NormalizedBooking } from './types';
-import { normalizeBooking } from './types';
 
 export function BookingTabBody(props: {
   tab: TabKey;
   booking: NormalizedBooking | null;
-  fallbackId: string;
   palette: PaletteLike;
   profileRole: 'RENTER' | 'LANDLORD' | 'ADMIN' | string;
   ownerRole: boolean;
@@ -26,22 +23,9 @@ export function BookingTabBody(props: {
   onRefund: () => void;
   onClose: () => void;
 }) {
-  const { tab, booking, fallbackId, palette, profileRole, ownerRole, onPay, onDecide, onRefund, onClose } =
-    props;
+  const { tab, booking, palette, profileRole, ownerRole, onPay, onDecide, onRefund, onClose } = props;
 
-  const { makeMockBookings } = require('@/lib/mock-bookings') as typeof import('@/lib/mock-bookings');
-  const demoList: Booking[] = typeof makeMockBookings === 'function' ? makeMockBookings() : [];
-  const demoNormalized = demoList[0] ? normalizeBooking(demoList[0]) : null;
-  const display: NormalizedBooking | null =
-    booking ??
-    (fallbackId
-      ? (() => {
-          const raw = demoList.find((b) => b.id === fallbackId);
-          return raw ? normalizeBooking(raw) : undefined;
-        })()
-      : undefined) ??
-    demoNormalized ??
-    null;
+  const display: NormalizedBooking | null = booking;
 
   if (!display) {
     return (

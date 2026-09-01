@@ -1,28 +1,32 @@
-import type { Listing } from '@/lib/models';
+import type { Listing, OwnerBooking } from '@/lib/models';
 import type { LandlordPropertyItem, LandlordStats } from './types';
 
-export function deriveLandlordStats(listings: Listing[]): LandlordStats {
+function isActiveToday(booking: OwnerBooking, todayIso: string): boolean {
+  return (
+    booking.status === 'CONFIRMED' &&
+    booking.startDate <= todayIso &&
+    booking.endDate >= todayIso
+  );
+}
+
+export function deriveLandlordStats(listings: Listing[], bookings: OwnerBooking[]): LandlordStats {
   const totalProperties = listings.length;
-  let occupied = 0;
-  let vacant = 0;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const occupiedListingIds = new Set(
+    bookings.filter((b) => isActiveToday(b, todayIso)).map((b) => b.listing.id),
+  );
+  const occupied = listings.filter((l) => occupiedListingIds.has(l.id)).length;
+  const vacant = totalProperties - occupied;
 
-  listings.forEach((listing, index) => {
-    const status =
-      listing.occupancyStatus ??
-      (index % 3 === 0 ? 'Vacant' : 'Occupied');
-    if (status === 'Occupied') occupied += 1;
-    else if (status === 'Vacant') vacant += 1;
-  });
-
-  const yearlyRevenue = listings.reduce((sum, l, index) => {
-    const status =
-      l.occupancyStatus ??
-      (index % 3 === 0 ? 'Vacant' : 'Occupied');
-    if (status !== 'Occupied') return sum;
-    return sum + l.pricePerNight * 365 * 0.65;
+  const now = new Date();
+  const monthlyRevenue = bookings.reduce((sum, b) => {
+    if (b.paymentStatus !== 'PAID') return sum;
+    const start = new Date(b.startDate + 'T00:00:00Z');
+    if (start.getUTCFullYear() !== now.getUTCFullYear() || start.getUTCMonth() !== now.getUTCMonth()) {
+      return sum;
+    }
+    return sum + b.total;
   }, 0);
-
-  const monthlyRevenue = Math.round(yearlyRevenue / 12);
 
   return {
     totalProperties,
@@ -33,11 +37,18 @@ export function deriveLandlordStats(listings: Listing[]): LandlordStats {
   };
 }
 
-export function deriveLandlordProperties(listings: Listing[]): LandlordPropertyItem[] {
-  return listings.map((listing, index) => {
-    const status =
-      (listing.occupancyStatus as 'Occupied' | 'Vacant' | 'Draft') ??
-      (index % 3 === 0 ? 'Vacant' : 'Occupied');
+export function deriveLandlordProperties(listings: Listing[], bookings: OwnerBooking[]): LandlordPropertyItem[] {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const occupiedListingIds = new Set(
+    bookings.filter((b) => isActiveToday(b, todayIso)).map((b) => b.listing.id),
+  );
+
+  return listings.map((listing) => {
+    const status: LandlordPropertyItem['status'] = occupiedListingIds.has(listing.id)
+      ? 'Occupied'
+      : listing.status === 'PENDING'
+        ? 'Draft'
+        : 'Vacant';
     const pricePerYear = Math.round(listing.pricePerNight * 365);
     return {
       id: listing.id,

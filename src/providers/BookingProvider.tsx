@@ -1,34 +1,18 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 
 import { apiFetch } from '@/lib/api-client';
-import {
-  createFakeBooking as makeFakeBooking,
-  makeMockBookings,
-  makeMockOwnerBookings,
-  type OwnerBooking,
-} from '@/lib/mock-bookings';
-import type { Booking, Listing } from '@/lib/models';
+import type { Booking, Listing, OwnerBooking } from '@/lib/models';
 import { payWithProvider, type PaymentProvider } from '@/lib/payment-flow';
-import {
-  issueRefund,
-  recordReceiptForPaidBooking,
-  updateBookingPaymentStatus,
-} from '@/lib/payments';
+import { recordReceiptForPaidBooking, updateBookingPaymentStatus } from '@/lib/payments';
 import { useAuth } from '@/providers/AuthProvider';
 
 type BookingDecision = 'APPROVE' | 'REJECT';
 
-type CreateFakeBookingOptions = {
-  listingId?: string;
-  startOffsetDays?: number;
-  nights?: number;
-  status?: Booking['status'];
-  paymentStatus?: Booking['paymentStatus'];
-};
-
 type BookingContextValue = {
   bookings: Booking[];
   ownerBookings: OwnerBooking[];
+  bookingsError: string | null;
+  ownerBookingsError: string | null;
   createBooking: (params: {
     listing: Listing;
     startDate: string;
@@ -38,7 +22,6 @@ type BookingContextValue = {
     serviceFee: number;
     total: number;
   }) => Promise<Booking>;
-  createFakeBooking: (opts?: CreateFakeBookingOptions) => Booking | null;
   payBooking: (bookingId: string, provider: PaymentProvider) => Promise<void>;
   refundBooking: (bookingId: string, reason: string) => Promise<void>;
   decideBooking: (bookingId: string, decision: BookingDecision) => Promise<void>;
@@ -49,7 +32,9 @@ const BookingContext = createContext<BookingContextValue | null>(null);
 
 export function BookingProvider({ children }: { children: ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
   const [ownerBookings, setOwnerBookings] = useState<OwnerBooking[]>([]);
+  const [ownerBookingsError, setOwnerBookingsError] = useState<string | null>(null);
   const [decideBusy, setDecideBusy] = useState<Record<string, boolean>>({});
   const { status, profile } = useAuth();
 
@@ -58,16 +43,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (status !== 'signedIn' || !profile) {
         setBookings([]);
+        setBookingsError(null);
         return;
       }
-      if (!process.env.EXPO_PUBLIC_API_URL) {
-        if (profile.role === 'LANDLORD' || profile.role === 'RENTER' || profile.role === 'ADMIN') {
-          setBookings(makeMockBookings());
-        } else {
-          setBookings([]);
-        }
-        return;
-      }
+      setBookingsError(null);
       try {
         const raw = await apiFetch('/bookings/me');
         if (cancelled) return;
@@ -107,9 +86,11 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             refundId: (b as any)?.refundId as string | undefined,
           };
         });
-        setBookings(mapped.length ? mapped : makeMockBookings());
-      } catch {
-        setBookings(makeMockBookings());
+        setBookings(mapped);
+      } catch (err) {
+        if (cancelled) return;
+        setBookings([]);
+        setBookingsError(err instanceof Error ? err.message : 'Failed to load bookings');
       }
     })();
 
@@ -123,18 +104,18 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (status !== 'signedIn' || !profile || profile.role !== 'LANDLORD') {
         setOwnerBookings([]);
+        setOwnerBookingsError(null);
         return;
       }
-      if (!process.env.EXPO_PUBLIC_API_URL) {
-        setOwnerBookings(makeMockOwnerBookings());
-        return;
-      }
+      setOwnerBookingsError(null);
       try {
         const raw = await apiFetch('/bookings/owner');
         if (cancelled) return;
         setOwnerBookings(Array.isArray(raw) ? (raw as OwnerBooking[]) : []);
-      } catch {
-        setOwnerBookings(makeMockOwnerBookings());
+      } catch (err) {
+        if (cancelled) return;
+        setOwnerBookings([]);
+        setOwnerBookingsError(err instanceof Error ? err.message : 'Failed to load bookings');
       }
     })();
 
@@ -147,42 +128,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     return {
       bookings,
       ownerBookings,
+      bookingsError,
+      ownerBookingsError,
       decideBusy,
-      createFakeBooking: (opts) => {
-        const result = makeFakeBooking({
-          ...opts,
-          role: profile?.role === 'LANDLORD' ? 'LANDLORD' : 'RENTER',
-        });
-        if (!result) return null;
-        setBookings((prev) => [result.booking, ...prev]);
-        const ob = result.ownerBooking;
-        if (ob) {
-          setOwnerBookings((prev) => [ob, ...prev]);
-        }
-        return result.booking;
-      },
       createBooking: async ({ listing, startDate, endDate, nights, subtotal, serviceFee, total }) => {
-        if (!process.env.EXPO_PUBLIC_API_URL) {
-          const booking: Booking = {
-            id: `local-${Date.now()}`,
-            listingId: listing.id,
-            listingTitle: listing.title,
-            location: listing.location,
-            currency: listing.currency,
-            startDate,
-            endDate,
-            nights,
-            pricePerNight: listing.pricePerNight,
-            subtotal,
-            serviceFee,
-            total,
-            createdAt: new Date().toISOString(),
-            status: 'PENDING',
-            paymentStatus: 'UNPAID',
-          };
-          setBookings((prev) => [booking, ...prev]);
-          return booking;
-        }
         const raw = await apiFetch('/bookings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -215,12 +164,8 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         const booking = bookings.find((b) => b.id === bookingId);
         if (!booking) return;
 
-        let receiptReference: string | undefined;
-        if (process.env.EXPO_PUBLIC_API_URL) {
-          const result = await payWithProvider({ purpose: 'BOOKING', targetId: bookingId, provider });
-          receiptReference = result.reference;
-        }
-        const receipt = recordReceiptForPaidBooking(booking, receiptReference);
+        const result = await payWithProvider({ purpose: 'BOOKING', targetId: bookingId, provider });
+        const receipt = recordReceiptForPaidBooking(booking, result.reference);
         const newOwnerStatus: Booking['status'] = 'CONFIRMED';
         setBookings((prev) =>
           prev.map((b) => {
@@ -237,38 +182,32 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           }),
         );
       },
-      refundBooking: async (bookingId: string, reason: string) => {
-        const booking = bookings.find((b) => b.id === bookingId);
-        if (!booking) return;
-        const refund = issueRefund(booking, reason);
+      refundBooking: async (bookingId: string, _reason: string) => {
+        // No dedicated "refund" endpoint — cancelling a paid booking is how a
+        // refund is requested; the backend flips paymentStatus to
+        // REFUND_PENDING and its refund-processor job (cron on Docker,
+        // /internal/cron/refund-processor on Vercel) actually moves the money.
+        const raw = await apiFetch(`/bookings/${bookingId}/cancel`, { method: 'POST' });
+        const nextPaymentStatus = ((raw as any)?.paymentStatus as Booking['paymentStatus']) ?? 'REFUNDED';
+        const nextStatus = ((raw as any)?.status as Booking['status']) ?? 'CANCELLED';
         setBookings((prev) =>
-          prev.map((b) => {
-            if (b.id !== bookingId) return b;
-            const updated = updateBookingPaymentStatus(b, 'REFUNDED', b.status);
-            updated.refundId = refund.id;
-            return updated;
-          }),
+          prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: nextPaymentStatus, status: nextStatus } : b)),
         );
         setOwnerBookings((prev) =>
-          prev.map((ob) => {
-            if (ob.id !== bookingId) return ob;
-            return { ...ob, paymentStatus: 'REFUNDED' };
-          }),
+          prev.map((ob) =>
+            ob.id === bookingId ? { ...ob, paymentStatus: nextPaymentStatus, status: nextStatus } : ob,
+          ),
         );
       },
       decideBooking: async (bookingId: string, decision: BookingDecision) => {
         setDecideBusy((prev) => ({ ...prev, [bookingId]: true }));
         try {
           const nextStatus: Booking['status'] = decision === 'APPROVE' ? 'CONFIRMED' : 'REJECTED';
-          if (process.env.EXPO_PUBLIC_API_URL) {
-            try {
-              await apiFetch(`/bookings/${bookingId}/decision`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ decision: decision === 'APPROVE' ? 'ACCEPT' : 'REJECT' }),
-              });
-            } catch {}
-          }
+          await apiFetch(`/bookings/${bookingId}/decision`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision: decision === 'APPROVE' ? 'ACCEPT' : 'REJECT' }),
+          });
           setBookings((prev) =>
             prev.map((b) => {
               if (b.id !== bookingId) return b;
@@ -290,7 +229,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         }
       },
     };
-  }, [bookings, ownerBookings, decideBusy]);
+  }, [bookings, ownerBookings, bookingsError, ownerBookingsError, decideBusy]);
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
 }

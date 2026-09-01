@@ -43,14 +43,12 @@ bluerock-mobile/
 │   └── Colors.ts             # legacy tab tint colors
 ├── hooks/
 │   ├── useAppTheme.ts        # palette + isDark
-│   ├── useListings.ts        # listings query with filter + mock fallback
-│   └── useListing.ts         # single listing query with mock fallback
+│   ├── useListings.ts        # listings query (real API only)
+│   └── useListing.ts         # single listing query (real API only)
 ├── lib/
 │   ├── api-client.ts         # fetch wrapper: auto-prefix /api/v1 + bearer token + envelope unwrap
 │   ├── format.ts             # formatMoney, etc.
 │   ├── listing-mapper.ts     # map API Listing → client model
-│   ├── mock-data.ts          # 10+ seed listings, always used as fallback
-│   ├── mock-bookings.ts      # dev bookings fallback
 │   ├── models.ts             # UserProfile, Listing, Booking shared types
 │   ├── storage.ts            # async-storage helpers
 │   └── token-store.ts        # secure-store wrappers for JWT
@@ -152,15 +150,20 @@ Always use `apiFetch(path, options?)` from `lib/api-client.ts`. It handles:
 - unwrapping the backend `{ success, data, message }` envelope
 - throws on HTTP errors or `success: false`
 
-### 5.2 Mock fallbacks are mandatory
+### 5.2 No mock/demo fallbacks — surface real state instead
 
-**UI must never be empty if the API is offline or missing.**
+As of the 2026-08-30 demo-removal pass, this app has no mock data files and no
+demo-login bypass. `EXPO_PUBLIC_API_URL` is required; every screen calls the
+real backend and renders a real loading / error / empty state instead of
+falling back to fabricated data.
 
-- `useListings()` and `useListing()` must fall back to `mockListings` when the API throws or returns 0 items.
-- Booking flows should remain visible via local optimistic writes in `BookingProvider`.
-- When adding a new data hook, follow the same pattern:
-  1. try live API
-  2. on missing / empty / error → return `mock-*.ts` data
+- `useListings()`, `useListing()`, `useHostListings()` always call the real API and
+  propagate `isLoading` / `isError` to the screen — they do not synthesize data.
+- `BookingProvider` exposes `bookingsError` / `ownerBookingsError` for screens to
+  render instead of silently swallowing fetch failures.
+- When adding a new data hook or screen, do **not** add a mock/demo fallback.
+  Design a real empty state (nothing yet) and a real error state (request failed)
+  instead — see `app/(tabs)/index.tsx` and `app/(tabs)/bookings.tsx` for the pattern.
 
 ### 5.3 TanStack Query conventions
 
@@ -183,7 +186,9 @@ Always use `apiFetch(path, options?)` from `lib/api-client.ts`. It handles:
 | `LANDLORD` | redirect `/bookings` → `/host-bookings`, dashboard, my listings, bookings, payout, account. |
 | `ADMIN` | web admin only. Mobile does not expose admin pages. |
 
-In `AuthProvider`, if `EXPO_PUBLIC_API_URL` is unset, login/register still succeed with a dev token so the app remains runnable offline.
+`AuthProvider` requires `EXPO_PUBLIC_API_URL` to be set — every auth action (login, register,
+password reset, profile update, landlord application) throws a clear "connect a server" error
+if it is missing. There is no offline/demo login bypass.
 
 ### 6.3 Test credentials (from seed, also work in web)
 
@@ -262,7 +267,9 @@ The de facto verification step after any screen refactor is:
 - Do **not** introduce `@expo/vector-icons` / Ionicons / MaterialIcons. Use `expo-symbols`.
 - Do **not** re-introduce a 6th visible tab or hide labels on some tabs while showing them on others.
 - Do **not** hardcode `#2563eb` or any palette color in per-component stylesheets — use `palette.*`.
-- Do **not** ship data screens that blank out when the backend is not reachable; always fallback to mocks.
+- Do **not** reintroduce mock/demo data files, a demo-login bypass, or a "Create Demo Booking"-style
+  button. When the backend is unreachable or returns nothing, render a real loading/error/empty
+  state — never fabricated data.
 - Do **not** add comments inside code blocks unless explicitly requested. Write self-documenting names.
 
 ---

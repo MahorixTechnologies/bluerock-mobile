@@ -197,7 +197,7 @@ export default function HostListingsScreen() {
               tintColor={palette.primary}
             />
             <Text style={[styles.noticeBannerText, { color: palette.primary }]}>
-              Demo mode — read only. Set EXPO_PUBLIC_API_URL to create or edit listings.
+              No server connected — read only. Set EXPO_PUBLIC_API_URL to create or edit listings.
             </Text>
           </View>
         ) : null}

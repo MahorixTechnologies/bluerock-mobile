@@ -6,8 +6,8 @@ import { Alert, Platform, View } from 'react-native';
 
 import { AppBottomSheet } from '@/components/ui/bottom-sheet/AppBottomSheet';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { mockListings } from '@/lib/mock-data';
-import type { Listing } from '@/lib/models';
+import { useListing } from '@/hooks/useListing';
+import { useListings } from '@/hooks/useListings';
 import { formatMoney } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { useBookings } from '@/providers/BookingProvider';
@@ -42,12 +42,11 @@ export default function ModalScreen() {
 
   const booking: NormalizedBooking | null = rawBooking ? normalizeBooking(rawBooking) : null;
 
-  const listing =
-    mode === 'listing' && id
-      ? (mockListings.find((l) => l.id === id) as Listing | undefined) ?? null
-      : null;
+  const { data: fetchedListing } = useListing(mode === 'listing' && id ? id : '');
+  const listing = mode === 'listing' ? (fetchedListing ?? null) : null;
 
-  const welcomeListing = mockListings.find((l) => l.featured) ?? mockListings[0] ?? null;
+  const { data: browseListings = [] } = useListings();
+  const welcomeListing = browseListings.find((l) => l.featured) ?? browseListings[0] ?? null;
   const ownerRole = profile?.role === 'LANDLORD' || profile?.role === 'ADMIN';
 
   const tabs = resolveTabs(mode);
@@ -75,8 +74,8 @@ export default function ModalScreen() {
                   : ''
               }`
             : id
-              ? 'Reservation not found locally'
-              : 'Demo booking preview',
+              ? 'Reservation not found'
+              : 'No reservation selected',
         };
       case 'listing':
         return {
@@ -84,8 +83,8 @@ export default function ModalScreen() {
           subtitle: listing
             ? listing.location
             : id
-              ? 'Property not cached locally'
-              : 'Handpicked stay preview',
+              ? 'Loading…'
+              : 'No property selected',
         };
       case 'welcome':
       default:
@@ -125,7 +124,6 @@ export default function ModalScreen() {
               <BookingTabBody
                 tab={activeTab}
                 booking={booking}
-                fallbackId={id}
                 palette={palette}
                 profileRole={profile?.role ?? 'RENTER'}
                 ownerRole={ownerRole}

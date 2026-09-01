@@ -2,9 +2,10 @@ import { Href, useRouter } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useHostListings } from '@/hooks/useHostListings';
 import { useListings } from '@/hooks/useListings';
-import { mockListings } from '@/lib/mock-data';
 import { useAuth } from '@/providers/AuthProvider';
+import { useBookings } from '@/providers/BookingProvider';
 
 import { HomeFeaturedCarousel } from '../home/HomeFeaturedCarousel';
 import { SectionHeader } from '../home/SectionHeader';
@@ -19,14 +20,15 @@ export function LandlordDashboard() {
   const { palette } = useAppTheme();
   const { profile } = useAuth();
   const router = useRouter();
-  const { data: listings = [], refetch, isRefetching } = useListings();
+  const { data: myListings = [], refetch, isRefetching } = useHostListings();
+  const { ownerBookings } = useBookings();
+  const { data: browseListings = [] } = useListings();
 
-  const listingFeed = listings.length ? listings : mockListings;
-  const stats = deriveLandlordStats(listingFeed);
-  const allProperties = deriveLandlordProperties(listingFeed);
+  const stats = deriveLandlordStats(myListings, ownerBookings);
+  const allProperties = deriveLandlordProperties(myListings, ownerBookings);
   const previewProperties = allProperties.slice(0, 2);
-  const featuredPool = listingFeed.filter((item) => item.featured);
-  const featuredListings = (featuredPool.length ? featuredPool : listingFeed).slice(0, 5);
+  const featuredPool = browseListings.filter((item) => item.featured);
+  const featuredListings = (featuredPool.length ? featuredPool : browseListings).slice(0, 5);
 
   const greetingName =
     profile?.name?.trim().split(' ')[0] ||
@@ -91,12 +93,27 @@ export function LandlordDashboard() {
 
         <LandlordQuickAccess palette={palette} onAction={handleQuickAction} />
 
-        <LandlordPropertiesSection
-          palette={palette}
-          properties={previewProperties}
-          onViewAll={handleViewAll}
-          onPropertyPress={handlePropertyPress}
-        />
+        {previewProperties.length ? (
+          <LandlordPropertiesSection
+            palette={palette}
+            properties={previewProperties}
+            onViewAll={handleViewAll}
+            onPropertyPress={handlePropertyPress}
+          />
+        ) : (
+          <View
+            style={[
+              landlordStyles.emptyState,
+              { backgroundColor: palette.card, borderColor: palette.border },
+            ]}>
+            <Text style={[landlordStyles.emptyTitle, { color: palette.text }]}>
+              No properties yet
+            </Text>
+            <Text style={[landlordStyles.emptyText, { color: palette.muted }]}>
+              Add your first listing to start tracking bookings and revenue.
+            </Text>
+          </View>
+        )}
 
         <View style={landlordStyles.featuredSection}>
           <SectionHeader
@@ -141,6 +158,7 @@ const styles = StyleSheet.create({
 
 const landlordStyles = StyleSheet.create({
   featuredSection: { gap: 14, marginTop: 4 },
-  emptyState: { borderRadius: 24, padding: 22, borderWidth: 1 },
+  emptyState: { borderRadius: 24, padding: 22, borderWidth: 1, gap: 6 },
   emptyTitle: { fontSize: 15, fontWeight: '800' },
+  emptyText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
 });

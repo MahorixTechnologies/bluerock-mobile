@@ -24,7 +24,7 @@ type BookingSection = {
 export default function BookingsScreen() {
   const { palette } = useAppTheme();
   const { status, profile } = useAuth();
-  const { bookings, createFakeBooking } = useBookings();
+  const { bookings, bookingsError } = useBookings();
   const { data: listings = [] } = useListings();
   const listingImages = Object.fromEntries(
     listings.map((listing) => [listing.id, listing.images[0]]),
@@ -132,39 +132,16 @@ export default function BookingsScreen() {
               />
             ) : null}
 
-            <Pressable
-              onPress={() => createFakeBooking()}
-              style={({ pressed }) => [
-                styles.demoButton,
-                {
-                  backgroundColor: palette.primarySoft,
-                  borderColor: palette.primary,
-                  opacity: pressed ? 0.9 : 1,
-                },
-              ]}>
-              <View style={[styles.demoButtonIcon, { backgroundColor: palette.card }]}>
+            {bookingsError ? (
+              <View style={[styles.errorBanner, { backgroundColor: palette.dangerSoft, borderColor: palette.danger }]}>
                 <SymbolView
-                  name={{ ios: 'plus', android: 'add', web: 'add' } as any}
+                  name={{ ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' } as any}
                   size={16}
-                  tintColor={palette.primary}
-                  weight="bold"
+                  tintColor={palette.danger}
                 />
+                <Text style={[styles.errorBannerText, { color: palette.danger }]}>{bookingsError}</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.demoButtonTitle, { color: palette.primary }]}>
-                  Create Demo Booking
-                </Text>
-                <Text style={[styles.demoButtonSubtitle, { color: palette.primary }]}>
-                  Generates a random upcoming reservation for demo purposes
-                </Text>
-              </View>
-              <SymbolView
-                name={{ ios: 'sparkles', android: 'auto-awesome', web: 'auto-awesome' } as any}
-                size={18}
-                tintColor={palette.primary}
-                weight="semibold"
-              />
-            </Pressable>
+            ) : null}
           </View>
         }
         ListEmptyComponent={<BookingsEmptyState palette={palette} />}
@@ -226,22 +203,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: { fontWeight: '800', fontSize: 16 },
-  demoButton: {
+  errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 22,
+    gap: 10,
+    borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  demoButtonIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoButtonTitle: { fontSize: 14, fontWeight: '900', letterSpacing: -0.1 },
-  demoButtonSubtitle: { fontSize: 12, fontWeight: '600', opacity: 0.78, marginTop: 1 },
+  errorBannerText: { flex: 1, fontSize: 13, fontWeight: '700', lineHeight: 18 },
 });

@@ -28,47 +28,10 @@ type AuthContextValue = {
 
 const PROFILE_KEY = 'bluerock.profile.v1';
 
-type DemoAccount = {
-  email: string;
-  password: string;
-  role: UserProfile['role'];
-  name: string;
-  phone?: string;
-  emailVerified: boolean;
-};
-
-export const DEMO_ACCOUNTS: DemoAccount[] = [
-  {
-    email: 'admin@bluerock.com',
-    password: 'admin123',
-    role: 'ADMIN',
-    name: 'BlueRock Admin',
-    emailVerified: true,
-  },
-  {
-    email: 'landlord@bluerock.com',
-    password: 'landlord123',
-    role: 'LANDLORD',
-    name: 'BlueRock Landlord',
-    phone: '+2348123456789',
-    emailVerified: true,
-  },
-  {
-    email: 'renter@bluerock.com',
-    password: 'renter123',
-    role: 'RENTER',
-    name: 'BlueRock Renter',
-    emailVerified: true,
-  },
-];
-
-function matchDemoAccount(email: string, password: string): DemoAccount | null {
-  const normalized = email.trim().toLowerCase();
-  return (
-    DEMO_ACCOUNTS.find(
-      (a) => a.email.toLowerCase() === normalized && a.password === password,
-    ) ?? null
-  );
+function requireApiUrl() {
+  if (!process.env.EXPO_PUBLIC_API_URL) {
+    throw new Error('This action requires a connected server. Configure EXPO_PUBLIC_API_URL.');
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -98,8 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(safeLocal);
         setStatus('signedIn');
 
-        const isDemoToken = typeof token === 'string' && token.startsWith('demo.');
-        if (!isDemoToken && process.env.EXPO_PUBLIC_API_URL) {
+        if (process.env.EXPO_PUBLIC_API_URL) {
           try {
             const me = (await apiFetch('/users/me')) as any;
             const nextProfile: UserProfile = {
@@ -146,64 +108,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       login: async ({ email, password }) => {
         setStatus('loading');
+        requireApiUrl();
         const trimmedEmail = email.trim();
-        const demo = matchDemoAccount(trimmedEmail, password);
-        if (demo) {
-          const devToken = `demo.${demo.role}.${Date.now()}`;
+        try {
+          const payload = await apiFetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trimmedEmail, password }),
+          });
+          const token = (payload as any)?.accessToken ?? (payload as any)?.token;
+          if (!token || typeof token !== 'string') throw new Error('Login token missing');
+
           const nextProfile: UserProfile = {
-            email: demo.email,
-            name: demo.name,
-            phone: demo.phone ?? '',
-            emailVerified: demo.emailVerified,
-            role: demo.role,
+            email: trimmedEmail,
+            name: (payload as any)?.user?.name ?? '',
+            phone: (payload as any)?.user?.phone ?? '',
+            emailVerified: Boolean((payload as any)?.user?.emailVerified),
+            role: ((payload as any)?.user?.role as UserProfile['role']) ?? 'RENTER',
           };
-          await setAccessToken(devToken);
+          await setAccessToken(token);
           await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
           setProfile(nextProfile);
           setStatus('signedIn');
-          return;
+        } catch (e) {
+          setStatus('signedOut');
+          throw e instanceof Error ? e : new Error('Login failed');
         }
-
-        if (process.env.EXPO_PUBLIC_API_URL) {
-          try {
-            const payload = await apiFetch('/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: trimmedEmail, password }),
-            });
-            const token = (payload as any)?.accessToken ?? (payload as any)?.token;
-            if (!token || typeof token !== 'string') throw new Error('Login token missing');
-
-            const nextProfile: UserProfile = {
-              email: trimmedEmail,
-              name: (payload as any)?.user?.name ?? '',
-              phone: (payload as any)?.user?.phone ?? '',
-              emailVerified: Boolean((payload as any)?.user?.emailVerified),
-              role: ((payload as any)?.user?.role as UserProfile['role']) ?? 'RENTER',
-            };
-            await setAccessToken(token);
-            await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-            setProfile(nextProfile);
-            setStatus('signedIn');
-            return;
-          } catch (e) {
-            setStatus('signedOut');
-            throw new Error(
-              e instanceof Error
-                ? e.message
-                : 'Invalid credentials. Try the demo accounts below.',
-            );
-          }
-        }
-
-        setStatus('signedOut');
-        throw new Error(
-          'Unknown account. Use a demo account (renter@bluerock.com / renter123) or configure EXPO_PUBLIC_API_URL.',
-        );
       },
       register: async ({ email, password, role, phone, name }) => {
         setStatus('loading');
-        if (process.env.EXPO_PUBLIC_API_URL) {
+        try {
+          requireApiUrl();
           const payload = await apiFetch('/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -229,21 +164,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
           setProfile(nextProfile);
           setStatus('signedIn');
-          return;
+        } catch (e) {
+          setStatus('signedOut');
+          throw e instanceof Error ? e : new Error('Registration failed');
         }
-
-        const devToken = `dev.${Date.now()}`;
-        const nextProfile: UserProfile = {
-          email,
-          name: name ?? '',
-          phone: phone ?? '',
-          emailVerified: false,
-          role: role ?? 'RENTER',
-        };
-        await setAccessToken(devToken);
-        await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-        setProfile(nextProfile);
-        setStatus('signedIn');
       },
       logout: async () => {
         await deleteAccessToken();
@@ -252,21 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('signedOut');
       },
       requestPasswordReset: async (email) => {
-        if (process.env.EXPO_PUBLIC_API_URL) {
-          const payload = await apiFetch('/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-          });
-          const token = (payload as any)?.passwordResetToken;
-          return typeof token === 'string' ? token : null;
-        }
-        return null;
+        requireApiUrl();
+        const payload = await apiFetch('/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const token = (payload as any)?.passwordResetToken;
+        return typeof token === 'string' ? token : null;
       },
       confirmPasswordReset: async ({ token, newPassword }) => {
-        if (!process.env.EXPO_PUBLIC_API_URL) {
-          throw new Error('Password reset requires a connected server. Configure EXPO_PUBLIC_API_URL.');
-        }
+        requireApiUrl();
         await apiFetch('/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -281,14 +201,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       updateProfile: async ({ name, phone }) => {
         if (!profile) return;
+        requireApiUrl();
+        await apiFetch('/users/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone }),
+        });
         const nextProfile: UserProfile = { ...profile, name, phone };
-        if (process.env.EXPO_PUBLIC_API_URL) {
-          await apiFetch('/users/me', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, phone }),
-          });
-        }
         await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
         setProfile(nextProfile);
       },
@@ -300,27 +219,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (profile.ownerApplicationStatus === 'PENDING') {
           throw new Error('You already have a pending landlord application.');
         }
+        requireApiUrl();
 
-        if (process.env.EXPO_PUBLIC_API_URL) {
-          const payload = await apiFetch('/users/me/owner-application', {
-            method: 'POST',
-          });
-          const nextProfile: UserProfile = {
-            ...profile,
-            ownerApplicationStatus:
-              ((payload as any)?.ownerApplicationStatus as UserProfile['ownerApplicationStatus']) ??
-              'PENDING',
-            ownerApplicationAt: (payload as any)?.ownerApplicationAt ?? new Date().toISOString(),
-          };
-          await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-          setProfile(nextProfile);
-          return;
-        }
-
+        const payload = await apiFetch('/users/me/owner-application', {
+          method: 'POST',
+        });
         const nextProfile: UserProfile = {
           ...profile,
-          ownerApplicationStatus: 'PENDING',
-          ownerApplicationAt: new Date().toISOString(),
+          ownerApplicationStatus:
+            ((payload as any)?.ownerApplicationStatus as UserProfile['ownerApplicationStatus']) ??
+            'PENDING',
+          ownerApplicationAt: (payload as any)?.ownerApplicationAt ?? new Date().toISOString(),
         };
         await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
         setProfile(nextProfile);

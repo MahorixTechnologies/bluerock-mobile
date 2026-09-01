@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
+import { apiFetch } from '@/lib/api-client';
+import { mapApiListing } from '@/lib/listing-mapper';
+import type { Booking, OwnerBooking } from '@/lib/models';
 import { useBookings } from '@/providers/BookingProvider';
-import { makeMockBookings, makeMockOwnerBookings, type OwnerBooking } from '@/lib/mock-bookings';
-import { mockListings } from '@/lib/mock-data';
-import type { Booking } from '@/lib/models';
 import { useAuth } from '@/providers/AuthProvider';
 
 export type EnrichedBooking = Booking & {
@@ -34,70 +34,67 @@ function ownerBookingToBooking(ob: OwnerBooking): Booking {
 export function useBooking(id: string) {
   const { bookings, ownerBookings } = useBookings();
   const { profile } = useAuth();
-  const role = profile?.role ?? 'RENTER';
+  void profile;
 
-  const booking: EnrichedBooking | null = useMemo(() => {
-    if (!id) return null;
+  let foundBooking: Booking | null = null;
+  let foundRenter: { id: string; name: string; email: string } | undefined;
 
-    let foundBooking: Booking | null = null;
-    let foundRenter: { id: string; name: string; email: string } | undefined = undefined;
+  const renterMatch = bookings.find((b) => b.id === id);
+  if (renterMatch) {
+    foundBooking = renterMatch;
+  }
 
-    const renterMatch = bookings.find((b) => b.id === id);
-    if (renterMatch) {
-      foundBooking = renterMatch;
+  if (!foundBooking) {
+    const ownerMatch = ownerBookings.find((ob) => ob.id === id);
+    if (ownerMatch) {
+      foundBooking = ownerBookingToBooking(ownerMatch);
+      foundRenter = {
+        id: ownerMatch.renter.id,
+        name: ownerMatch.renter.name,
+        email: ownerMatch.renter.email,
+      };
     }
+  }
 
-    if (!foundBooking) {
-      const ownerMatch = ownerBookings.find((ob) => ob.id === id);
-      if (ownerMatch) {
-        foundBooking = ownerBookingToBooking(ownerMatch);
-        foundRenter = {
-          id: ownerMatch.renter.id,
-          name: ownerMatch.renter.name,
-          email: ownerMatch.renter.email,
-        };
+  const [listingExtra, setListingExtra] = useState<{ type?: string; imageUrl?: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setListingExtra(null);
+    if (!foundBooking?.listingId) return;
+    void (async () => {
+      try {
+        const raw = await apiFetch(`/listings/${foundBooking!.listingId}`);
+        if (cancelled || !raw) return;
+        const listing = mapApiListing(raw);
+        setListingExtra({ type: listing.type, imageUrl: listing.images?.[0] });
+      } catch {
+        // Booking itself is real; the listing enrichment (type/cover image)
+        // is a nice-to-have — leave it unset rather than fabricate one.
       }
-    }
-
-    if (!foundBooking) {
-      const mockRenterBookings = makeMockBookings();
-      const mockRenterMatch = mockRenterBookings.find((b) => b.id === id);
-      if (mockRenterMatch) {
-        foundBooking = mockRenterMatch;
-      }
-    }
-
-    if (!foundBooking) {
-      const mockOwnerBookings = makeMockOwnerBookings();
-      const mockOwnerMatch = mockOwnerBookings.find((ob) => ob.id === id);
-      if (mockOwnerMatch) {
-        foundBooking = ownerBookingToBooking(mockOwnerMatch);
-        foundRenter = {
-          id: mockOwnerMatch.renter.id,
-          name: mockOwnerMatch.renter.name,
-          email: mockOwnerMatch.renter.email,
-        };
-      }
-    }
-
-    if (!foundBooking) return null;
-
-    const listingData = mockListings.find((l) => l.id === foundBooking!.listingId);
-    const enrichedListing: EnrichedBooking['listing'] = {
-      id: foundBooking!.listingId,
-      title: listingData?.title ?? foundBooking!.listingTitle,
-      location: listingData?.location ?? foundBooking!.location,
-      currency: listingData?.currency ?? foundBooking!.currency,
-      type: listingData?.type,
-      imageUrl: listingData?.images?.[0],
+    })();
+    return () => {
+      cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foundBooking?.listingId]);
 
-    return {
-      ...foundBooking,
-      listing: enrichedListing,
-      renter: foundRenter,
-    } as EnrichedBooking;
-  }, [id, bookings, ownerBookings, role]);
+  if (!foundBooking) return { data: null };
+
+  const enrichedListing: EnrichedBooking['listing'] = {
+    id: foundBooking.listingId,
+    title: foundBooking.listingTitle,
+    location: foundBooking.location,
+    currency: foundBooking.currency,
+    type: listingExtra?.type,
+    imageUrl: listingExtra?.imageUrl,
+  };
+
+  const booking: EnrichedBooking = {
+    ...foundBooking,
+    listing: enrichedListing,
+    renter: foundRenter,
+  };
 
   return { data: booking };
 }

@@ -9,7 +9,6 @@ import { HomeFilterChips } from '@/components/home/HomeFilterChips';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useListings } from '@/hooks/useListings';
 import type { Listing } from '@/lib/models';
-import { mockListings } from '@/lib/mock-data';
 import { useAuth } from '@/providers/AuthProvider';
 
 type Category = 'All listings' | 'Featured' | 'New this week';
@@ -35,11 +34,11 @@ export default function ListingsScreen() {
   const { profile } = useAuth();
   const isLandlord = profile?.role === 'LANDLORD';
 
-  const { data: listings = [], isLoading, refetch, isRefetching } = useListings();
+  const { data: listings = [], isLoading, isError, refetch, isRefetching } = useListings();
   const [category, setCategory] = useState<Category>('All listings');
   const [location, setLocation] = useState<string>(ALL_LOCATIONS);
 
-  const listingFeed = listings.length ? listings : mockListings;
+  const listingFeed = listings;
 
   const locationChips = useMemo(() => {
     const cities = new Set(listingFeed.map((item) => cityOf(item.location)).filter(Boolean));
@@ -122,10 +121,14 @@ export default function ListingsScreen() {
           <View
             style={[styles.emptyState, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Text style={[styles.emptyTitle, { color: palette.text }]}>
-              {isLoading ? 'Loading listings…' : 'No listings match these filters'}
+              {isLoading
+                ? 'Loading listings…'
+                : isError
+                  ? "Couldn't load listings"
+                  : 'No listings match these filters'}
             </Text>
             <Text style={[styles.emptyText, { color: palette.muted }]}>
-              Try a different category or location.
+              {isError ? 'Check your connection and pull to refresh.' : 'Try a different category or location.'}
             </Text>
           </View>
         )}

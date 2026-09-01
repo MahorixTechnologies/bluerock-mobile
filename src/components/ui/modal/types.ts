@@ -1,5 +1,4 @@
-import type { Booking, Listing } from '@/lib/models';
-import type { OwnerBooking } from '@/lib/mock-bookings';
+import type { Booking, Listing, OwnerBooking } from '@/lib/models';
 
 export type ModalMode = 'booking' | 'listing' | 'welcome';
 export type TabKey = 'info' | 'actions' | 'history';

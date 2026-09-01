@@ -118,6 +118,20 @@ export type Booking = {
   refundId?: string;
 };
 
+export type OwnerBooking = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  subtotal: number;
+  serviceFee: number;
+  total: number;
+  status: Booking['status'];
+  paymentStatus: Booking['paymentStatus'];
+  listing: { id: string; title: string; location: string; currency: 'USD' | 'NGN' };
+  renter: { id: string; email: string; name: string; phone: string };
+};
+
 export type OwnerApplicationStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type UserProfile = {
