@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Input, PasswordInput } from '@/components/inputs';
+import { OtpInput } from '@/components/ui/inputs/OtpInput';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -35,7 +36,8 @@ export default function ForgotPasswordScreen() {
   const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const [step, setStep] = useState<ResetStep>('request');
   const [email, setEmail] = useState('');
-  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [demoCode, setDemoCode] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -45,6 +47,7 @@ export default function ForgotPasswordScreen() {
   const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
   const canSubmit = email.trim().length > 0 && status !== 'sending';
   const canReset =
+    code.trim().length === 6 &&
     passwordChecks.every((item) => item.passed) &&
     confirmPassword.length > 0 &&
     confirmPassword === password &&
@@ -97,8 +100,8 @@ export default function ForgotPasswordScreen() {
           </Text>
           <Text style={[styles.subtitle, { color: palette.muted }]}>
             {step === 'request'
-              ? 'Enter your email and we’ll send you a secure recovery link'
-              : 'Create a strong new password for your account'}
+              ? 'Enter your email and we’ll send you a 6-digit reset code'
+              : 'Enter the code from your email and choose a new password'}
           </Text>
         </View>
 
@@ -125,13 +128,14 @@ export default function ForgotPasswordScreen() {
                   setError(null);
                   setStatus('sending');
                   try {
-                    const token = await requestPasswordReset(email.trim());
-                    setResetToken(token);
+                    const result = await requestPasswordReset(email.trim());
+                    setDemoCode(result.demoCode);
+                    setCode(result.demoCode ?? '');
                     setStatus('sent');
                     setStep('reset');
                   } catch (e: any) {
                     setStatus('error');
-                    setError(e?.message ?? 'Failed to send reset link');
+                    setError(e?.message ?? 'Failed to send reset code');
                   }
                 }}
                 style={({ pressed }) => [
@@ -143,7 +147,7 @@ export default function ForgotPasswordScreen() {
                   },
                 ]}>
                 <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>
-                  {status === 'sending' ? 'Sending Recovery Link...' : 'Send Recovery Link  →'}
+                  {status === 'sending' ? 'Sending code...' : 'Send reset code  →'}
                 </Text>
               </Pressable>
             </View>
@@ -161,14 +165,19 @@ export default function ForgotPasswordScreen() {
 
         {step === 'reset' ? (
           <View style={styles.form}>
-            {!resetToken ? (
-              <View style={[styles.inlineBanner, { backgroundColor: palette.warningSoft }]}>
-                <Text style={[styles.inlineBannerText, { color: palette.warning }]}>
-                  If an account exists for that email, a reset link has been sent. Configure
-                  EXPO_PUBLIC_API_URL to complete the reset in this app.
+            {demoCode ? (
+              <View style={[styles.inlineBanner, { backgroundColor: palette.primarySoft }]}>
+                <Text style={[styles.inlineBannerText, { color: palette.primary }]}>
+                  ✨ Demo mode: no email server is wired up, so we&apos;ve pre-filled the code below
                 </Text>
               </View>
-            ) : null}
+            ) : (
+              <Text style={[styles.footerText, { color: palette.muted }]}>
+                Enter the 6-digit code sent to {email.trim()}.
+              </Text>
+            )}
+
+            <OtpInput value={code} onChange={setCode} disabled={resetStatus === 'saving'} />
 
             <PasswordInput
               label="Password"
@@ -215,13 +224,16 @@ export default function ForgotPasswordScreen() {
             ) : null}
 
             <Pressable
-              disabled={!canReset || !resetToken}
+              disabled={!canReset}
               onPress={async () => {
-                if (!resetToken) return;
                 setError(null);
                 setResetStatus('saving');
                 try {
-                  await confirmPasswordReset({ token: resetToken, newPassword: password });
+                  await confirmPasswordReset({
+                    email: email.trim(),
+                    code: code.trim(),
+                    newPassword: password,
+                  });
                   setResetStatus('done');
                   router.replace('/(auth)/login');
                 } catch (e: any) {
@@ -232,7 +244,7 @@ export default function ForgotPasswordScreen() {
               style={({ pressed }) => [
                 styles.primaryButton,
                 {
-                  backgroundColor: canReset && resetToken ? palette.primary : palette.primarySoft,
+                  backgroundColor: canReset ? palette.primary : palette.primarySoft,
                   shadowColor: palette.primary,
                   opacity: pressed ? 0.92 : 1,
                 },

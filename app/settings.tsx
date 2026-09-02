@@ -14,7 +14,7 @@ export default function SettingsScreen() {
   const { palette, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { status, profile, logout, markEmailVerified } = useAuth();
+  const { status, profile, logout } = useAuth();
   const { settings, setSetting } = useSettings();
 
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
                 iconColor={palette.warning}
                 label="Verify email"
                 hint={profile?.email}
-                onPress={markEmailVerified}
+                onPress={() => router.push('/verify-email')}
               />
             )}
           </Section>

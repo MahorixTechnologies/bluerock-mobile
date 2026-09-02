@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { Href, Link } from 'expo-router';
+import { Href, Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -40,7 +40,8 @@ function SectionEyebrow({
 
 export default function ProfileScreen() {
   const { palette } = useAppTheme();
-  const { status, profile, logout, markEmailVerified, updateProfile, applyForLandlord } = useAuth();
+  const router = useRouter();
+  const { status, profile, logout, updateProfile, applyForLandlord } = useAuth();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -165,7 +166,7 @@ export default function ProfileScreen() {
           <Text style={[styles.meta, { color: palette.muted }]}>
             Verify your account to unlock trusted marketplace features.
           </Text>
-          <Button variant="secondary" onPress={markEmailVerified} style={{ marginTop: 4 }}>
+          <Button variant="secondary" onPress={() => router.push('/verify-email')} style={{ marginTop: 4 }}>
             Request verification email
           </Button>
         </View>
@@ -487,7 +488,7 @@ export default function ProfileScreen() {
 
         {!profile.emailVerified ? (
           <Pressable
-            onPress={markEmailVerified}
+            onPress={() => router.push('/verify-email')}
             style={({ pressed }) => [
               styles.rowLink,
               { borderTopColor: palette.border, opacity: pressed ? 0.7 : 1 },

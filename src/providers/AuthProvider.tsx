@@ -19,9 +19,14 @@ type AuthContextValue = {
     name?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<string | null>;
-  confirmPasswordReset: (params: { token: string; newPassword: string }) => Promise<void>;
-  markEmailVerified: () => Promise<void>;
+  requestEmailVerification: (email: string) => Promise<{ demoCode: string | null }>;
+  verifyEmail: (params: { email: string; code: string }) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ demoCode: string | null }>;
+  confirmPasswordReset: (params: {
+    email: string;
+    code: string;
+    newPassword: string;
+  }) => Promise<void>;
   updateProfile: (profile: Pick<UserProfile, 'name' | 'phone'>) => Promise<void>;
   applyForLandlord: () => Promise<void>;
 };
@@ -175,6 +180,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setStatus('signedOut');
       },
+      requestEmailVerification: async (email) => {
+        requireApiUrl();
+        const payload = await apiFetch('/auth/request-email-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const code = (payload as any)?.emailVerificationCode;
+        return { demoCode: typeof code === 'string' ? code : null };
+      },
+      verifyEmail: async ({ email, code }) => {
+        requireApiUrl();
+        await apiFetch('/auth/verify-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code }),
+        });
+        setProfile((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, emailVerified: true };
+          void setItem(PROFILE_KEY, JSON.stringify(next));
+          return next;
+        });
+      },
       requestPasswordReset: async (email) => {
         requireApiUrl();
         const payload = await apiFetch('/auth/forgot-password', {
@@ -182,22 +211,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
         });
-        const token = (payload as any)?.passwordResetToken;
-        return typeof token === 'string' ? token : null;
+        const code = (payload as any)?.passwordResetCode;
+        return { demoCode: typeof code === 'string' ? code : null };
       },
-      confirmPasswordReset: async ({ token, newPassword }) => {
+      confirmPasswordReset: async ({ email, code, newPassword }) => {
         requireApiUrl();
         await apiFetch('/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, newPassword }),
+          body: JSON.stringify({ email, code, newPassword }),
         });
-      },
-      markEmailVerified: async () => {
-        if (!profile) return;
-        const nextProfile: UserProfile = { ...profile, emailVerified: true };
-        await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-        setProfile(nextProfile);
       },
       updateProfile: async ({ name, phone }) => {
         if (!profile) return;

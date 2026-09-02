@@ -116,6 +116,7 @@ export default function RegisterScreen() {
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       });
       router.replace('/');
+      router.push('/verify-email');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed');
     }

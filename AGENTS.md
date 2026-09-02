@@ -231,13 +231,21 @@ screen, `app/saved-listings.tsx`, still exists as a push-with-back-button varian
 `search.tsx` and the Account shortcuts — the two are intentionally not merged.
 
 ### Listing Detail (`app/listing/[id].tsx`)
-Use `useListing(id)` which falls back to `mock-data.ts`.
+Use `useListing(id)` — always calls the real API, no mock fallback.
 
-### Auth flows (`app/(auth)/*`)
-Use shared inputs from `components/inputs/` and `TextField.tsx`.
+### Auth flows (`app/(auth)/*` + `app/verify-email.tsx`)
+Use shared inputs from `components/inputs/` and the shared `OtpInput` (`src/components/ui/inputs/OtpInput.tsx`)
+for every 6-digit code entry.
 - login → `POST /auth/login`
-- register → `POST /auth/register` (role is `RENTER` by default)
-- forgot-password → `POST /auth/forgot-password`
+- register → `POST /auth/register` (role is `RENTER` by default), then pushes `/verify-email`
+  (a root-level route, not inside `(auth)`, since it's also reachable from Settings/Account while
+  signed in) — that screen auto-sends a code via `AuthProvider.requestEmailVerification(email)` and
+  submits it via `AuthProvider.verifyEmail({ email, code })`. Verification is skippable ("Skip for
+  now") since the backend doesn't gate login on `emailVerified`.
+- forgot-password → `AuthProvider.requestPasswordReset(email)` (`POST /auth/forgot-password`) issues
+  a 6-digit code, then the same screen's `reset` step collects that code + a new password via
+  `AuthProvider.confirmPasswordReset({ email, code, newPassword })` (`POST /auth/reset-password`).
+  There is no token-in-a-link step anywhere in this app — codes are always typed in.
 
 ---
 

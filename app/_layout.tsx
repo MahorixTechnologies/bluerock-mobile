@@ -104,6 +104,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-email" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "transparentModal", animation: "fade" }} />
       </Stack>
     </ThemeProvider>
