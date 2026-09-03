@@ -237,11 +237,14 @@ Use `useListing(id)` — always calls the real API, no mock fallback.
 Use shared inputs from `components/inputs/` and the shared `OtpInput` (`src/components/ui/inputs/OtpInput.tsx`)
 for every 6-digit code entry.
 - login → `POST /auth/login`
-- register → `POST /auth/register` (role is `RENTER` by default), then pushes `/verify-email`
-  (a root-level route, not inside `(auth)`, since it's also reachable from Settings/Account while
-  signed in) — that screen auto-sends a code via `AuthProvider.requestEmailVerification(email)` and
-  submits it via `AuthProvider.verifyEmail({ email, code })`. Verification is skippable ("Skip for
-  now") since the backend doesn't gate login on `emailVerified`.
+- register → `POST /auth/register` (role is `RENTER` by default) creates an unverified account and
+  emails a 6-digit code, but issues **no accessToken** — the app is not signed in yet. It pushes
+  `/verify-email?email=...&sent=1` (a root-level route, not inside `(auth)`, since it's also
+  reachable from `login` redirecting an unverified account). That screen submits the code via
+  `AuthProvider.verifyEmail({ email, code })`, which is what actually signs the user in (backend
+  returns `{accessToken, user}` on success). `login()` itself throws `"email not verified"` for an
+  unverified account, which the login screen catches and redirects to `/verify-email` for. There is
+  no skip affordance — verification is mandatory before the app grants a session.
 - forgot-password → `AuthProvider.requestPasswordReset(email)` (`POST /auth/forgot-password`) issues
   a 6-digit code, then the same screen's `reset` step collects that code + a new password via
   `AuthProvider.confirmPasswordReset({ email, code, newPassword })` (`POST /auth/reset-password`).

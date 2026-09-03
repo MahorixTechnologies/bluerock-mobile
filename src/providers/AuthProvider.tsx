@@ -141,10 +141,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       register: async ({ email, password, role, phone, name }) => {
+        // Deliberately does not sign the user in — the backend never issues
+        // an accessToken at registration (only an unverified account is
+        // created). The caller must route to /verify-email; verifyEmail()
+        // below is what actually establishes the session.
         setStatus('loading');
         try {
           requireApiUrl();
-          const payload = await apiFetch('/auth/register', {
+          await apiFetch('/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -155,23 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: typeof name === 'string' ? name : undefined,
             }),
           });
-          const token = (payload as any)?.accessToken ?? (payload as any)?.token;
-          if (!token || typeof token !== 'string') throw new Error('Registration token missing');
-
-          const nextProfile: UserProfile = {
-            email,
-            name: (payload as any)?.user?.name ?? name ?? '',
-            phone: (payload as any)?.user?.phone ?? '',
-            emailVerified: Boolean((payload as any)?.user?.emailVerified),
-            role: ((payload as any)?.user?.role as UserProfile['role']) ?? (role ?? 'RENTER'),
-          };
-          await setAccessToken(token);
-          await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-          setProfile(nextProfile);
-          setStatus('signedIn');
-        } catch (e) {
+        } finally {
           setStatus('signedOut');
-          throw e instanceof Error ? e : new Error('Registration failed');
         }
       },
       logout: async () => {
@@ -190,19 +179,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const code = (payload as any)?.emailVerificationCode;
         return { demoCode: typeof code === 'string' ? code : null };
       },
+      // A successful verification is also the first (and only, alongside
+      // login()) moment the account becomes a real session — register()
+      // deliberately never signs in, so this establishes it here.
       verifyEmail: async ({ email, code }) => {
         requireApiUrl();
-        await apiFetch('/auth/verify-email', {
+        const payload = await apiFetch('/auth/verify-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, code }),
         });
-        setProfile((prev) => {
-          if (!prev) return prev;
-          const next = { ...prev, emailVerified: true };
-          void setItem(PROFILE_KEY, JSON.stringify(next));
-          return next;
-        });
+        const token = (payload as any)?.accessToken;
+        if (!token || typeof token !== 'string') {
+          throw new Error('Verification response was missing an access token.');
+        }
+
+        const nextProfile: UserProfile = {
+          email: (payload as any)?.user?.email ?? email,
+          name: (payload as any)?.user?.name ?? '',
+          phone: (payload as any)?.user?.phone ?? '',
+          emailVerified: true,
+          role: ((payload as any)?.user?.role as UserProfile['role']) ?? 'RENTER',
+        };
+        await setAccessToken(token);
+        await setItem(PROFILE_KEY, JSON.stringify(nextProfile));
+        setProfile(nextProfile);
+        setStatus('signedIn');
       },
       requestPasswordReset: async (email) => {
         requireApiUrl();

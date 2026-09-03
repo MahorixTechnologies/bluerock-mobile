@@ -113,10 +113,15 @@ export default function LoginScreen() {
             disabled={!canSubmit}
             onPress={async () => {
               setError(null);
+              const trimmedEmail = email.trim();
               try {
-                await login({ email: email.trim(), password });
+                await login({ email: trimmedEmail, password });
                 router.replace('/');
               } catch (e) {
+                if (e instanceof Error && e.message === 'email not verified') {
+                  router.push({ pathname: '/verify-email', params: { email: trimmedEmail } });
+                  return;
+                }
                 setError(e instanceof Error ? e.message : 'Login failed');
               }
             }}

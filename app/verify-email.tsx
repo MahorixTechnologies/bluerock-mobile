@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,13 @@ export default function VerifyEmailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile, requestEmailVerification, verifyEmail } = useAuth();
-  const email = profile?.email ?? '';
+  const params = useLocalSearchParams<{ email?: string; sent?: string }>();
+  const email = profile?.email ?? params.email ?? '';
+  // Registration already emails a code as part of account creation — only
+  // auto-send here when we arrive without one already in flight (e.g. the
+  // login screen redirecting an unverified account), so a fresh signup
+  // never gets two verification emails for one attempt.
+  const alreadySent = params.sent === '1';
 
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState<string | null>(null);
@@ -45,6 +51,10 @@ export default function VerifyEmailScreen() {
   useEffect(() => {
     if (requestedRef.current || !email) return;
     requestedRef.current = true;
+    if (alreadySent) {
+      setNotice('Check your email for a 6-digit code.');
+      return;
+    }
     void sendCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
@@ -54,7 +64,7 @@ export default function VerifyEmailScreen() {
     setError(null);
     try {
       await verifyEmail({ email, code: code.trim() });
-      router.back();
+      router.replace('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : "That code didn't work.");
     } finally {
@@ -133,10 +143,6 @@ export default function VerifyEmailScreen() {
             </Text>
           </Pressable>
         </View>
-
-        <Pressable onPress={() => router.back()} style={styles.skipRow} hitSlop={8}>
-          <Text style={[styles.linkText, { color: palette.muted }]}>Skip for now</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -182,5 +188,4 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: 13 },
   linkText: { fontWeight: '700', fontSize: 13 },
-  skipRow: { marginTop: 16, alignItems: 'center' },
 });

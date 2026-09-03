@@ -108,15 +108,15 @@ export default function RegisterScreen() {
     setError(null);
 
     try {
+      const trimmedEmail = email.trim().toLowerCase();
       await register({
-        email: email.trim().toLowerCase(),
+        email: trimmedEmail,
         password,
         role,
         phone: formatPhoneNumberForApi(phone),
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       });
-      router.replace('/');
-      router.push('/verify-email');
+      router.push({ pathname: '/verify-email', params: { email: trimmedEmail, sent: '1' } });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed');
     }
