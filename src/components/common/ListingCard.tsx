@@ -13,12 +13,13 @@ import { useMemo } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const CARD_RADIUS = 28;
+const GRID_RADIUS = 20;
 const IMAGE_CURVE_OVERLAP = 22;
 
 type ListingCardProps = {
   item: Listing;
   href: Href;
-  variant?: 'featured' | 'list';
+  variant?: 'featured' | 'list' | 'grid';
 };
 
 function HeartButton({
@@ -196,6 +197,59 @@ export function ListingCard({
               </Text>
               <RatingBadge rating={rating} dark />
             </View>
+          </View>
+        </Pressable>
+      </Link>
+    );
+  }
+
+  const isGrid = variant === 'grid';
+
+  if (isGrid) {
+    return (
+      <Link href={href} asChild>
+        <Pressable
+          style={({ pressed }) => [
+            styles.gridCard,
+            {
+              opacity: pressed ? 0.96 : 1,
+              borderColor: palette.border,
+              backgroundColor: palette.card,
+              shadowColor: palette.shadow,
+            },
+          ]}
+        >
+          <View style={styles.gridImageWrap}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.gridImage} />
+            ) : (
+              <View style={[styles.gridImage, styles.imagePlaceholder]}>
+                <SymbolView
+                  name={{ ios: 'photo', android: 'image', web: 'image' } as any}
+                  size={26}
+                  tintColor="#ffffff"
+                />
+              </View>
+            )}
+            <View style={styles.gridBadgeWrap}>
+              <ListingStatusTag status={listingStatus} palette={palette} size="small" />
+            </View>
+            <View style={styles.gridHeartWrap}>
+              <HeartButton listingId={item.id} tintColor="#ffffff" overlay />
+            </View>
+          </View>
+
+          <View style={styles.gridBody}>
+            <Text style={[styles.gridTitle, { color: palette.text }]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={[styles.gridMeta, { color: palette.muted }]} numberOfLines={1}>
+              {item.location}
+            </Text>
+            <Text style={[styles.gridPrice, { color: palette.text }]}>
+              {formatMoney(item.pricePerNight, item.currency)}
+              <Text style={[styles.gridPriceSuffix, { color: palette.muted }]}>/night</Text>
+            </Text>
           </View>
         </Pressable>
       </Link>
@@ -449,4 +503,32 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   listPriceSuffix: { fontSize: 14, fontWeight: '600', letterSpacing: -0.1 },
+
+  gridCard: {
+    flexDirection: 'column',
+    borderRadius: GRID_RADIUS,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as const } : null),
+  },
+  gridImageWrap: {
+    position: 'relative',
+    width: '100%',
+  },
+  gridImage: {
+    width: '100%',
+    height: 128,
+    backgroundColor: 'rgba(150,150,150,0.12)',
+  },
+  gridBadgeWrap: { position: 'absolute', top: 10, left: 10 },
+  gridHeartWrap: { position: 'absolute', top: 8, right: 8 },
+  gridBody: { gap: 3, padding: 12 },
+  gridTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.1, lineHeight: 18 },
+  gridMeta: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
+  gridPrice: { fontSize: 14, fontWeight: '800', letterSpacing: -0.2, marginTop: 3 },
+  gridPriceSuffix: { fontSize: 12, fontWeight: '600' },
 });

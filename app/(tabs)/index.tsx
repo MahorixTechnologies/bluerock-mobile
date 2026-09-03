@@ -1,7 +1,18 @@
 import { SymbolView } from 'expo-symbols';
-import { Href, Link } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Href } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
+import {
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  UIManager,
+  View,
+} from 'react-native';
 
 import { LandlordDashboard } from '@/components/landlord/LandlordDashboard';
 import { ListingCard } from '@/components/ListingCard';
@@ -10,6 +21,14 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useListings } from '@/hooks/useListings';
 import type { Listing } from '@/lib/models';
 import { useAuth } from '@/providers/AuthProvider';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function animateLayout() {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+}
 
 type Category = 'All listings' | 'Featured' | 'New this week';
 
@@ -29,6 +48,12 @@ function cityOf(location: string): string {
   return segments[segments.length - 1]?.trim() || location.trim();
 }
 
+function matchesQuery(item: Listing, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return item.title.toLowerCase().includes(q) || item.location.toLowerCase().includes(q);
+}
+
 export default function ListingsScreen() {
   const { palette } = useAppTheme();
   const { profile } = useAuth();
@@ -37,6 +62,9 @@ export default function ListingsScreen() {
   const { data: listings = [], isLoading, isError, refetch, isRefetching } = useListings();
   const [category, setCategory] = useState<Category>('All listings');
   const [location, setLocation] = useState<string>(ALL_LOCATIONS);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<TextInput>(null);
 
   const listingFeed = listings;
 
@@ -47,13 +75,28 @@ export default function ListingsScreen() {
 
   const filtered = useMemo(() => {
     let result = listingFeed;
+    if (searchOpen && searchQuery.trim()) {
+      return result.filter((item) => matchesQuery(item, searchQuery));
+    }
     if (category === 'Featured') result = result.filter((item) => item.featured);
     if (category === 'New this week') result = result.filter(isNew);
     if (location !== ALL_LOCATIONS) {
       result = result.filter((item) => cityOf(item.location) === location);
     }
     return result;
-  }, [listingFeed, category, location]);
+  }, [listingFeed, category, location, searchOpen, searchQuery]);
+
+  const openSearch = () => {
+    animateLayout();
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  };
+
+  const closeSearch = () => {
+    animateLayout();
+    setSearchOpen(false);
+    setSearchQuery('');
+  };
 
   if (isLandlord) {
     return <LandlordDashboard />;
@@ -72,11 +115,49 @@ export default function ListingsScreen() {
             colors={[palette.primary]}
           />
         }>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: palette.text }]}>Home</Text>
-          <Link href={'/(tabs)/search' as Href} asChild>
+        {searchOpen ? (
+          <View style={styles.searchRow}>
+            <View
+              style={[
+                styles.searchBar,
+                { backgroundColor: palette.card, borderColor: palette.border },
+              ]}>
+              <SymbolView
+                name={{ ios: 'magnifyingglass', android: 'search', web: 'search' } as any}
+                size={16}
+                tintColor={palette.muted}
+              />
+              <TextInput
+                ref={searchInputRef}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by title or location"
+                placeholderTextColor={palette.muted}
+                style={[styles.searchInput, { color: palette.text }]}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 ? (
+                <Pressable hitSlop={10} onPress={() => setSearchQuery('')}>
+                  <SymbolView
+                    name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' } as any}
+                    size={17}
+                    tintColor={palette.muted}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+            <Pressable hitSlop={10} onPress={closeSearch}>
+              <Text style={[styles.cancelText, { color: palette.primary }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: palette.text }]}>Home</Text>
             <Pressable
               hitSlop={10}
+              onPress={openSearch}
               style={({ pressed }) => [
                 styles.searchButton,
                 { backgroundColor: palette.card, borderColor: palette.border, opacity: pressed ? 0.7 : 1 },
@@ -88,22 +169,26 @@ export default function ListingsScreen() {
                 weight="semibold"
               />
             </Pressable>
-          </Link>
-        </View>
+          </View>
+        )}
 
-        <HomeFilterChips
-          chips={CATEGORIES}
-          selected={category}
-          onSelect={(chip) => setCategory(chip as Category)}
-          palette={palette}
-        />
+        {!searchOpen ? (
+          <>
+            <HomeFilterChips
+              chips={CATEGORIES}
+              selected={category}
+              onSelect={(chip) => setCategory(chip as Category)}
+              palette={palette}
+            />
 
-        <HomeFilterChips
-          chips={locationChips}
-          selected={location}
-          onSelect={(chip) => setLocation(chip)}
-          palette={palette}
-        />
+            <HomeFilterChips
+              chips={locationChips}
+              selected={location}
+              onSelect={(chip) => setLocation(chip)}
+              palette={palette}
+            />
+          </>
+        ) : null}
 
         {filtered.length ? (
           <View style={styles.list}>
@@ -112,7 +197,7 @@ export default function ListingsScreen() {
                 <ListingCard
                   item={item}
                   href={`/modal?mode=listing&id=${item.id}` as Href}
-                  variant="list"
+                  variant="grid"
                 />
               </View>
             ))}
@@ -125,10 +210,16 @@ export default function ListingsScreen() {
                 ? 'Loading listings…'
                 : isError
                   ? "Couldn't load listings"
-                  : 'No listings match these filters'}
+                  : searchOpen
+                    ? 'No listings match your search'
+                    : 'No listings match these filters'}
             </Text>
             <Text style={[styles.emptyText, { color: palette.muted }]}>
-              {isError ? 'Check your connection and pull to refresh.' : 'Try a different category or location.'}
+              {isError
+                ? 'Check your connection and pull to refresh.'
+                : searchOpen
+                  ? 'Try a different title or location.'
+                  : 'Try a different category or location.'}
             </Text>
           </View>
         )}
@@ -146,6 +237,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { fontSize: 26, fontWeight: '800' },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+  },
+  searchInput: { flex: 1, fontSize: 15, padding: 0 },
+  cancelText: { fontSize: 14, fontWeight: '700' },
   searchButton: {
     width: 40,
     height: 40,
